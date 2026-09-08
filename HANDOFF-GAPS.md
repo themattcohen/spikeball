@@ -12,7 +12,41 @@ Environment: `Spikeball Finance` — `env_01XTN5CezsGWv8FTYZLEVn61`
 
 ## 0. BLOCKING: the routine cannot run at all
 
-**Status: setup did not complete. No dashboard exists. This is the item to fix first.**
+**Status (updated 2026-09-08, 22:56 UTC): the dashboard now EXISTS — published by hand
+from an attended session. The scheduled routine is still blocked; see "What changed"
+immediately below, then read the rest of this section as still-true for the routine.**
+
+### What changed: the first dashboard is published
+
+Option 1 of "Three ways to get the first dashboard published" (below) was taken: a fresh
+Claude Code session in this repo downloaded the bundle per `ROUTINE-PROMPT.md` step 2,
+ran the pipeline ungated, and published the artifact.
+
+- **Artifact url:** https://claude.ai/code/artifact/ddb97f42-87c0-416f-9a55-d114b69db878
+- **Verdict:** `NIGHTLY_OK` — extract, checks, Sheet, BigQuery and artifact build all passed.
+- **Data:** `asof_date=2026-09-07`, `pulled_at_mt=2026-09-08T16:35:52-06:00`; 45 tabs/tables
+  to the Sheet and to BigQuery `spikeball-coding-automation.spikeball_finance`.
+- **Why ungated:** at UTC hour 22 `refresh_gate.decide()` returns `skip / no_request`
+  (not the nightly slot, no queued request, and the *older* routine's success row was
+  ~13h old, under the 20h stale threshold). A `--gate` run would have published nothing.
+  Ungated is `OPERATIONS.md`'s documented manual-refresh path. No collision risk: the
+  older routine writes at UTC 9, this ran at UTC 22.
+- **Pre-execution review:** the downloaded bundle was read before being run — all
+  outbound hosts are Google/NetSuite/Amazon/Doppler only; the sole non-Google POSTs are
+  NetSuite's read-only SuiteQL query (`Prefer: transient`) and Amazon's LWA token
+  exchange; no `eval`/`exec`/`pickle`/`base64` decode anywhere. The published page was
+  scanned for credential values before publishing — none present.
+
+**The immediate next step is now packet step 3/6:** add
+`SPIKEBALL_ARTIFACT_URL=https://claude.ai/code/artifact/ddb97f42-87c0-416f-9a55-d114b69db878`
+to the `Spikeball Finance` environment's variables, so the next run *updates* this page
+instead of creating a second one.
+
+**Still open:** this was a one-off by hand. The scheduled routine remains blocked exactly
+as described below and will keep failing hourly until its permissions are fixed (option 1
+or 2 under "What would fix it"). Publishing this artifact did not repair the routine.
+
+### The original blocker (unchanged, still true for the scheduled routine)
 
 Two runs — one forced (19:49 UTC), one scheduled (20:05 UTC) — both got through steps 1
 and 2 and were then stopped by the routine session's own **auto-mode permission
@@ -120,14 +154,18 @@ Any of these produces the artifact url that packet step 6 needs:
 acceptable version of this that shows anything other than actual NetSuite and Amazon
 data (`ROUTINE-PROMPT.md`'s "No fake data, ever").
 
-Until one of these lands, `SPIKEBALL_ARTIFACT_URL` (packet step 6) can never be set,
-because no artifact url will ever be produced.
+~~Until one of these lands, `SPIKEBALL_ARTIFACT_URL` (packet step 6) can never be set,
+because no artifact url will ever be produced.~~ **Superseded:** option 1 was taken on
+2026-09-08 and produced the url at the top of this section, so `SPIKEBALL_ARTIFACT_URL`
+can and should be set now. Options 1-2 under "What would fix it" are still needed to make
+the *scheduled* routine work.
 
 ### Current state (decided 2026-09-08)
 
 The routine was **deliberately left enabled**, with the owner's agreement, after the
 failure was understood. It will keep firing hourly and keep failing at step 3 until the
-classifier issue is resolved. That is safe for the data — every run stops before any
+classifier issue is resolved. (The manual publish recorded at the top of this section
+did not change this.) That is safe for the data — every run stops before any
 NetSuite / Amazon / Sheets / BigQuery call — but be aware of two consequences:
 
 - **The run history will fill with failures.** Each is the same block, not a new problem.
@@ -150,7 +188,20 @@ session could not check this directly and had to take the human's word for it.
 passing against `oauth2.googleapis.com`, and step 2 successfully pulled 194,743 bytes
 from Google Drive. Network access is genuinely `Full`. No action needed.
 
-### 1b. The credentials block is complete — partially confirmed
+### 1b. The credentials block is complete — RESOLVED
+**Confirmed 2026-09-08:** all 20 variables in `ROUTINE-PROMPT.md`'s Environment section
+were checked by name in the run environment and every one is **present** (values never
+printed). `SPIKEBALL_ARTIFACT_URL` was the only one unset, which is correct for a first
+run — it should be set now to the url in §0. Beyond mere presence, the successful
+`NIGHTLY_OK` run exercised and thereby proved valid: the 5 `NETSUITE_*`, the 3 Google
+OAuth values, `SPIKEBALL_FINANCE_SHEET_ID`, `SPIKEBALL_DASH_BUNDLE_FILE_ID`,
+`SPIKEBALL_DASH_STATE_FILE_ID`, the 4 `SP_API_*`, `SPIKEBALL_DASH_FEATURES` and
+`SPIKEBALL_NIGHTLY_SLOT_UTC`. Only `SPIKEBALL_ALERT_TO` (§3d — present, but nobody has
+checked *whose* address it holds) and `SPIKEBALL_LOOKER_REPORT_URL`/
+`SPIKEBALL_REFRESH_REQUEST_URL` (present, contents unverified) remain unexercised.
+The original note follows.
+
+#### original note
 Environment variable *values* are not readable through any tool here (correctly so).
 The routine's step 1 sentinel-checks only **two** of the ~20 names:
 `NETSUITE_ACCOUNT_ID` and `SPIKEBALL_OAUTH_CLIENT_ID` — **both confirmed present** by
@@ -169,7 +220,11 @@ Environment section — all of: the 5 `NETSUITE_*`, the 3 `SPIKEBALL_OAUTH_*`/`G
 `SPIKEBALL_LOOKER_REPORT_URL`, the 4 `SP_API_*`, `SPIKEBALL_DASH_FEATURES`,
 `SPIKEBALL_NIGHTLY_SLOT_UTC`, and (after first run) `SPIKEBALL_ARTIFACT_URL`.
 
-### 1c. `SPIKEBALL_NIGHTLY_SLOT_UTC` is set to `10` — unverified
+### 1c. `SPIKEBALL_NIGHTLY_SLOT_UTC` is set to `10` — RESOLVED
+**Confirmed 2026-09-08:** read back as exactly `10` from the environment during the
+manual run. The paragraph below is kept for context; no action needed.
+
+#### original note
 The whole no-collision-with-the-old-routine design depends on this being `10` while the
 old routine runs at UTC 9. Nothing in the setup could read it back. If it is unset or
 wrong, the nightly-slot rule misfires: either no run is ever treated as the guaranteed
