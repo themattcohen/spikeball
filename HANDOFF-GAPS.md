@@ -10,23 +10,101 @@ Environment: `Spikeball Finance` — `env_01XTN5CezsGWv8FTYZLEVn61`
 
 ---
 
+## 0. BLOCKING: the routine cannot run at all
+
+**Status: setup did not complete. No dashboard exists. This is the item to fix first.**
+
+Two runs — one forced (19:49 UTC), one scheduled (20:05 UTC) — both got through steps 1
+and 2 and were then stopped by the routine session's own **auto-mode permission
+classifier**:
+
+| Step | Command | Result |
+|---|---|---|
+| 1 | env sentinels + Google OAuth reachability | **passed** — vars present, `oauth2.googleapis.com` reachable |
+| 2 | download bundle from Drive | **passed** — 194,743 bytes → `dash/spike`, `dash/design`, `dash/PRD.md`; `run_nightly.py` present |
+| 3 | `pip install requests requests-oauthlib` | **DENIED by classifier** |
+| 4 | `python3 spike/routine/run_nightly.py --diagnose` | **DENIED by classifier** |
+| — | `python3 -c "import requests"` (sanity check) | **DENIED by classifier** |
+| — | `echo hello`, `python3 --version` | passed — so Bash itself is fine |
+
+So this is **not** a credentials problem and **not** a network problem. Step 1 proves
+both are healthy — which incidentally confirms §1a (network really is `Full`) and the two
+sentinel variables in §1b. What the classifier refuses is *executing freshly-downloaded,
+unreviewed code in a session holding live NetSuite / Amazon SP-API / Google credentials.*
+
+### Why this is worse than an ordinary failure
+
+**The routine cannot report its own failure.** `alert.py` is part of the same downloaded
+bundle, so the automated failure email can never fire. Left enabled, this routine fails
+**silently, every hour, forever** — the exact failure mode `OPERATIONS.md`'s alerting is
+supposed to prevent. Nobody would find out except by reading run logs by hand.
+
+Confirmed side effects: **none.** No NetSuite, Amazon, Sheets or BigQuery call was made,
+nothing was installed, no state file was touched, and no artifact was published
+(verified — the account has only the two unrelated Holiday Calendar artifacts).
+
+### What would fix it
+
+The routine's stored config exposes exactly the right knobs, and they are all empty:
+
+```
+"auto_mode_allow": [], "auto_mode_environment": [], "auto_mode_soft_deny": []
+```
+
+An allowlist entry for `pip install` and `python3 spike/routine/*.py` is very likely the
+intended fix. **But no tool available to the setup session can set them** — `create_trigger`
+and `update_trigger` expose only name, cron, environment, prompt, model and enabled state
+(same root cause as §2a's `allowed_tools`). Options, best first:
+
+1. **Set the auto-mode allowlist / permission mode** for this routine in the
+   claude.ai/code/routines UI, if it exposes those fields. Then re-run.
+2. **Reconsider the download-and-execute design.** The classifier is objecting to
+   something real: an unattended hourly job that fetches code from a Drive file and
+   executes it against financial systems has no code review between "someone edits the
+   bundle" and "it runs with production credentials." Attaching the code as a routine
+   `source` (a pinned repo revision) instead of a Drive zip would remove both the
+   classifier objection and that exposure. This is a change to the packet's design, not
+   something the setup session should decide.
+3. Pre-installing `requests`/`requests-oauthlib` via the environment's setup script would
+   fix step 3 only — step 4 would still be denied. Not sufficient on its own.
+
+Until one of these lands, `SPIKEBALL_ARTIFACT_URL` (packet step 6) can never be set,
+because no artifact url will ever be produced.
+
+### Current state (decided 2026-09-08)
+
+The routine was **deliberately left enabled**, with the owner's agreement, after the
+failure was understood. It will keep firing hourly and keep failing at step 3 until the
+classifier issue is resolved. That is safe for the data — every run stops before any
+NetSuite / Amazon / Sheets / BigQuery call — but be aware of two consequences:
+
+- **The run history will fill with failures.** Each is the same block, not a new problem.
+- **No email will ever announce it.** Judge health by opening the routine's runs at
+  claude.ai/code/routines, *not* by absence of an alert. Absence of an alert currently
+  means nothing at all.
+
+Once fixed, the very next successful run publishes a fresh artifact and prints
+`ARTIFACT_URL <url>` — at that point resume the packet at its step 6.
+
+---
+
 ## 1. Things the setup session could not verify itself
 
-### 1a. Network access is `Full` — taken on trust
-`list_environments` returns only id, name, description, state and kind. It does **not**
-return the network-access mode. The setup asked the human and they confirmed `Full`,
-but no tool available to this session can check it independently.
+### 1a. Network access is `Full` — RESOLVED
+`list_environments` returns only id, name, description, state and kind, so the setup
+session could not check this directly and had to take the human's word for it.
 
-**Consequence if wrong:** the routine's own step 1 catches it and prints
-`ENV_BLOCKED: oauth2.googleapis.com unreachable`, so it fails loudly rather than
-silently. Low risk, but it is an unverified assumption, not a checked fact.
+**Now confirmed by evidence:** both routine runs printed step 1's reachability check
+passing against `oauth2.googleapis.com`, and step 2 successfully pulled 194,743 bytes
+from Google Drive. Network access is genuinely `Full`. No action needed.
 
-**To close:** confirm visually in the environment's settings at claude.ai/code.
-
-### 1b. The credentials block is complete — taken on trust
+### 1b. The credentials block is complete — partially confirmed
 Environment variable *values* are not readable through any tool here (correctly so).
-The human confirmed they pasted the full block. The routine's step 1 only sentinel-checks
-**two** of the ~20 names: `NETSUITE_ACCOUNT_ID` and `SPIKEBALL_OAUTH_CLIENT_ID`.
+The routine's step 1 sentinel-checks only **two** of the ~20 names:
+`NETSUITE_ACCOUNT_ID` and `SPIKEBALL_OAUTH_CLIENT_ID` — **both confirmed present** by
+the two runs. Step 2 additionally proves `SPIKEBALL_OAUTH_CLIENT_SECRET`,
+`SPIKEBALL_GCP_OAUTH_REFRESH_TOKEN` and `SPIKEBALL_DASH_BUNDLE_FILE_ID` are set *and
+valid*, since the Drive download succeeded. The remaining ~14 are still unverified.
 
 **Consequence:** a missing `SP_API_REFRESH_TOKEN_EU`, `SPIKEBALL_DASH_STATE_FILE_ID`,
 `SPIKEBALL_ALERT_TO`, etc. sails past step 1 and surfaces later as a `NIGHTLY_FAIL` or
