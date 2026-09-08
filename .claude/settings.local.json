@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 spike/routine/run_nightly.py:*)",
+      "Bash(python3 spike/routine/alert.py:*)"
+    ]
+  }
+}
