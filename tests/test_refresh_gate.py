@@ -634,7 +634,7 @@ def test_ensure_loaded_env_first_no_doppler_call_no_token(monkeypatch, capsys):
     monkeypatch.setattr(doppler_env, "_load_via_api", _boom)
 
     assert doppler_env.ensure_loaded() is True
-    assert "secrets already present in the environment" in capsys.readouterr().out
+    assert "secrets already present in the environment" in capsys.readouterr().err
 
 
 def test_ensure_loaded_env_first_ignores_a_present_doppler_token():
