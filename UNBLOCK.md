@@ -139,14 +139,17 @@ exposes a `sources` (repository) field; otherwise a human, in the routines UI.
 
 - Attach `https://github.com/mcohen-spikeball/spikeball` as the routine's repository
   source, tracking its default branch.
-- Set the routine's allowed tools to Bash and Artifact. `allowed_tools` is a genuine
-  field of the routine's create/update body, at
-  `job_config.ccr.session_context.allowed_tools` -- pass `["Bash", "Artifact"]` there
-  if recreating or updating the routine through the session's own routine-management
-  tool. If that tool rejects the field (the earlier gap analysis found it exposing only
-  `name`, `cron`, `environment`, `prompt`, `model`, `enabled`), set it instead at
-  `claude.ai/code/routines`, which does expose both the repository source and the
-  permission settings.
+- Allowed tools: nothing to set. When the repository is attached, the routine stores
+  `preset:default` plus a list of built-in tools that does not name `Artifact`. That
+  list still includes Artifact: proven 2026-09-09 by a probe routine carrying the
+  identical stored list, whose session listed `Artifact` among its tools and published
+  a page. The publish raises a permission prompt, and in an unattended run auto mode
+  resolves it by itself (52 seconds observed) and the publish goes through. Nothing
+  else exposes `allowed_tools`: the web session's routine tools accept only `name`,
+  `cron`, `environment`, `prompt`, `model`, `enabled`, and the routines UI has no
+  control for it. The field exists only on the routines API
+  (`job_config.ccr.session_context.allowed_tools`), reachable from a Claude Code CLI
+  session signed in as this account; it is not needed here.
 - Keep the routine's cron and environment attachment (`Spikeball Finance`,
   `env_01XTN5CezsGWv8FTYZLEVn61`) unchanged.
 - Replace the routine's prompt text with the repository's `ROUTINE-PROMPT.md`, verbatim.
@@ -159,8 +162,9 @@ exposes a `sources` (repository) field; otherwise a human, in the routines UI.
   prompt, selecting the repository at creation time instead.
 
 **Success looks like**: the routine's configuration shows the repository attached as
-its source, on the default branch, with `Bash` and `Artifact` (or whatever the UI calls
-them) in its allowed tools.
+its source, on the default branch, and its prompt is the repository's
+`ROUTINE-PROMPT.md`. Its stored allowed tools read `preset:default` plus built-ins
+without `Artifact`; that is correct (see above).
 
 **If it fails**: if recreating the routine is the only option, note the new routine's
 id in place of `trig_012sYmV5ZRzkcaRvHgTcxgTc` above before continuing, since every
@@ -181,7 +185,13 @@ by triggering the routine itself and reading its own run log.
   its checkout, so there is nothing to click through or pre-approve for that; the only
   permission question that matters here is whether `.claude/settings.json`'s
   `permissions.allow` list covers the commands the run needs (step 1).
-- Poll until it reaches a terminal state, then read its log.
+- Poll until it reaches a terminal state, then read its log. The web session's
+  routine tools return only run metadata, not the log. Read the log either by opening
+  the run at `claude.ai/code/session/<session id>` in the browser, or from a Claude
+  Code CLI session signed in as this account, whose routine tool has `list_runs` and
+  `get_run_log`. If neither is at hand, the Sheet is the fallback: a new `run_log` row
+  means the pipeline ran, and a `superseded` or `honored` status on `refresh_requests`
+  means the gate ran.
 - Open the "Spikeball Finance Data" Sheet's `run_log` tab. The newest row's `trigger`
   column tells the story:
   - `nightly` or `request`, with a verdict of `NIGHTLY_OK` or `NIGHTLY_PARTIAL_OK`:
@@ -228,3 +238,7 @@ Two things are deliberately deferred and do not block calling this routine "work
 - `CUTOVER.md` -- disabling the older "Spikeball Finance nightly refresh" routine and
   moving this routine's nightly slot from 10:00 UTC to 9:00 UTC. Do this once you've
   watched this routine succeed on its own for a few days.
+- The `outcomes` push branch the UI added when the repository was attached is inert:
+  the routine prompt never commits or pushes, and the repository's own commits come
+  from interactive sessions. Clearing it needs the routines API `job_config` update
+  from a CLI session; not worth doing.
