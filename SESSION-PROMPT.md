@@ -28,7 +28,7 @@ List your cloud environments. Find one named exactly `Spikeball Finance`.
   set to `Full`, or it has no repository attached: **stop here.** Tell the human:
   create (or fix) a cloud environment named `Spikeball Finance` with network access
   `Full`, the dashboard's repository attached, and a Setup script of
-  `pip install -r requirements.txt`, following `README-HANDOFF.md` step 1, then reply
+  `cd /home/user/spikeball && pip install -r requirements.txt || true`, following `README-HANDOFF.md` step 1, then reply
   here when it's done. When they reply, list environments again and re-check before
   continuing.
 - Once it exists with `Full` network access and the repository attached: ask the human

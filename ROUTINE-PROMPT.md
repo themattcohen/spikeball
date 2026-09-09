@@ -72,8 +72,9 @@ report it and stop.
 Every value below is set as a plain environment variable on this routine's cloud
 environment (Environment variables, `.env` format, in the environment's settings).
 Nothing is read from a secrets service; the variable is simply present or it is not.
-The environment's Setup script runs `pip install -r requirements.txt` before this
-session starts, using the same checkout this session sees.
+The environment's Setup script runs `cd /home/user/spikeball && pip install -r requirements.txt || true`
+before this session starts, against the same checkout this session sees (the script's own
+working directory is the checkout's parent, hence the explicit path).
 
 - `NETSUITE_ACCOUNT_ID`, `NETSUITE_CONSUMER_KEY`, `NETSUITE_CONSUMER_SECRET`,
   `NETSUITE_TOKEN_ID`, `NETSUITE_TOKEN_SECRET` -- NetSuite token-based-authentication
@@ -192,8 +193,9 @@ code that produced them, which matters if a later run's output ever needs explai
 ### 3. Install dependencies
 
 This environment provisions in order: the environment itself, then the repository
-checkout, then the Setup script (`pip install -r requirements.txt`, configured on the
-environment), and only then does this session start, inside that checkout. Whether
+checkout, then the Setup script (`cd /home/user/spikeball && pip install -r requirements.txt || true`,
+configured on the environment; its working directory is the checkout's parent, not the
+checkout), and only then does this session start, inside that checkout. Whether
 packages the Setup script installs persist into this session is not documented, so
 this step re-runs the install defensively rather than assuming they do. Run it every
 time, and treat a run that reports everything already satisfied as success, not as

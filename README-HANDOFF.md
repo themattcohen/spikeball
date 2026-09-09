@@ -55,7 +55,8 @@ the cloud environment you create in step 1.
      NetSuite, Amazon, and Google, and the routine will not run)
    - **Environment variables**: paste the full contents of the credentials file
      provided to you outside this packet, exactly as given
-   - **Setup script**: `pip install -r requirements.txt`
+   - **Setup script**: `cd /home/user/spikeball && pip install -r requirements.txt || true` (the script does not run inside the
+     checkout, so the path is explicit; the checkout is named after the repository)
    Save the environment.
 2. Start a new Claude Code session on that environment and paste the full text of
    `SESSION-PROMPT.md` as your first message. The session already starts inside a

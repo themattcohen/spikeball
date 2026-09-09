@@ -99,16 +99,20 @@ environment's settings (`env_01XTN5CezsGWv8FTYZLEVn61`).
 
 - Set the **Setup script** to:
   ```bash
-  pip install -r requirements.txt
+  cd /home/user/spikeball && pip install -r requirements.txt || true
   ```
   A routine with a repository source provisions in a fixed order: the environment,
   then the repository checkout, then this Setup script, and only after that does the
-  Claude Code session itself start, inside that checkout -- the permission classifier
-  that gated the earlier zip design does not exist yet while the Setup script runs, so
-  nothing here is subject to it. Whether the packages this installs persist into the
-  session that follows is not documented, which is why `ROUTINE-PROMPT.md` step 3 runs
-  `pip install -r requirements.txt` again regardless; expect that to be a fast no-op
-  confirmation, not the first time dependencies are installed.
+  Claude Code session itself start. The Setup script does NOT run inside the checkout:
+  its working directory is the checkout's parent (`/home/user`; the checkout is
+  `/home/user/spikeball`, named after the repository), so a bare
+  `pip install -r requirements.txt` fails with "Could not open requirements file", and
+  a failing Setup script is fatal: the run dies before the session starts (run metadata
+  shows `init_script: Setup script failed`) and no alert can be sent. The `cd` fixes the
+  path; `|| true` keeps a transient pip failure from killing the run, which is safe
+  because `ROUTINE-PROMPT.md` step 3 re-runs the install inside the session anyway
+  (expect that to be a fast already-satisfied confirmation). The permission classifier
+  that gated the earlier zip design does not exist yet while the Setup script runs.
 - Change the environment variable `SPIKEBALL_ALERT_TO` from its current value to
   `casandra@spikeball.com`. Today it points at an address outside this project; the
   failure alert should reach the person operating this routine.
@@ -143,9 +147,13 @@ exposes a `sources` (repository) field; otherwise a human, in the routines UI.
   `name`, `cron`, `environment`, `prompt`, `model`, `enabled`), set it instead at
   `claude.ai/code/routines`, which does expose both the repository source and the
   permission settings.
-- Keep the routine's cron, environment attachment (`Spikeball Finance`,
-  `env_01XTN5CezsGWv8FTYZLEVn61`), and prompt text (`ROUTINE-PROMPT.md`, i.e. the
-  repository's `ROUTINE-PROMPT.md`, verbatim) unchanged.
+- Keep the routine's cron and environment attachment (`Spikeball Finance`,
+  `env_01XTN5CezsGWv8FTYZLEVn61`) unchanged.
+- Replace the routine's prompt text with the repository's `ROUTINE-PROMPT.md`, verbatim.
+  The prompt stored on the routine before this checklist is the earlier zip-bundle
+  version (it opens "This routine has no repository source"); attaching the repository
+  changes nothing while that prompt is live, because that prompt still downloads and
+  runs the zip. The `prompt` field is settable through the session's routine tool.
 - If neither the tool nor the UI can add a repository source to an existing routine,
   delete this routine and recreate it with the same name, cron, environment, and
   prompt, selecting the repository at creation time instead.
