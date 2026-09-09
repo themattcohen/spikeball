@@ -5,16 +5,15 @@ below yourself, in order, and stop exactly where told to stop and wait for the h
 -- do not skip a stop point, do not guess a value you're told to ask for.
 
 If a routine already exists for this dashboard and its scheduled runs aren't
-completing (rather than this being a first-time setup), read `handoff/UNBLOCK.md`
+completing (rather than this being a first-time setup), read `UNBLOCK.md`
 instead of this file -- it's the ordered checklist for that specific situation and
 supersedes the steps below.
 
 ## 0. Confirm the checkout
 
 Confirm you can see these files in your working directory before continuing:
-`handoff/README-HANDOFF.md`, `spike/routine/PROMPT_gate.md` (this is
-`ROUTINE-PROMPT.md`, referred to by that name below), `OPERATIONS.md`,
-`handoff/VERIFY.md`, `handoff/CUTOVER.md`. If any are missing, stop and report exactly
+`README-HANDOFF.md`, `ROUTINE-PROMPT.md`, `OPERATIONS.md`,
+`VERIFY.md`, `CUTOVER.md`. If any are missing, stop and report exactly
 which paths you looked for and what's actually present -- this means the repository
 checkout is incomplete or the environment is pointed at the wrong repository. Read
 `ROUTINE-PROMPT.md` in full now -- it is the exact text you will hand to the routine

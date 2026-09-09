@@ -116,9 +116,9 @@ place, and emails the alert address.
 - Amazon AOV: the Orders API infrastructure is built and dormant. Set `features.amazon_aov` to true in
   `spike/config/rollups.json` to show the Amazon order count and AOV tiles.
 - Alert address: `SPIKEBALL_ALERT_TO`, an environment variable on the gated routine's cloud environment
-  (currently `casandra@spikeball.com`).
+  (`casandra@spikeball.com` once UNBLOCK.md step 2 is complete; until then it is the previous address).
 - Google access: the gated routine's refresh runs as mcohen@spikeball.com through a one-time consent, for
-  now (see `handoff/RUNBOOK-google-identity.md` for moving this to Casandra later). If that account's
+  now (see `RUNBOOK-google-identity.md` for moving this to Casandra later). If that account's
   password or security settings change and the token is revoked, re-run `spike/routine/google_consent.py`
   and approve once.
 

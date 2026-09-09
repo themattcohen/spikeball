@@ -145,7 +145,7 @@ exposes a `sources` (repository) field; otherwise a human, in the routines UI.
   permission settings.
 - Keep the routine's cron, environment attachment (`Spikeball Finance`,
   `env_01XTN5CezsGWv8FTYZLEVn61`), and prompt text (`ROUTINE-PROMPT.md`, i.e. the
-  repository's `spike/routine/PROMPT_gate.md`, verbatim) unchanged.
+  repository's `ROUTINE-PROMPT.md`, verbatim) unchanged.
 - If neither the tool nor the UI can add a repository source to an existing routine,
   delete this routine and recreate it with the same name, cron, environment, and
   prompt, selecting the repository at creation time instead.

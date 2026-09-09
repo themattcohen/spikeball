@@ -32,7 +32,7 @@ Decision table (`decide()`, evaluated in the exact order below):
   4. any request with status `queued` and `requested_at_utc` strictly after
      `last_success_utc` -> run request:<comma-joined row numbers, ascending>.
   5. `now_utc.hour == nightly_slot_utc_hour()` (the nightly slot, default UTC 09:00 =
-     03:00 MT, overridable via env SPIKEBALL_NIGHTLY_SLOT_UTC -- see PROMPT_gate.md)
+     03:00 MT, overridable via env SPIKEBALL_NIGHTLY_SLOT_UTC -- see the routine prompt (ROUTINE-PROMPT.md))
      -> run nightly_slot.
   6. `now_utc - last_success_utc > 20h` AND (`last_attempt_utc` is None OR
      `now_utc - last_attempt_utc > 55min`) -> run stale_20h (a full day gone stale, but

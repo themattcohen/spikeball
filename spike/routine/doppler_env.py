@@ -124,7 +124,7 @@ def ensure_loaded():
     variables", or an outer `doppler run`), returns immediately -- no Doppler CLI call,
     no Doppler API call, no DOPPLER_TOKEN required."""
     if _already_loaded():
-        print("[doppler_env] secrets already present in the environment; Doppler not contacted", flush=True)
+        print("[doppler_env] secrets already present in the environment; Doppler not contacted", file=sys.stderr, flush=True)
         return True
     if _load_via_cli() and _already_loaded():
         return True

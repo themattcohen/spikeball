@@ -220,7 +220,7 @@ python3 spike/routine/run_nightly.py --diagnose
 ```
 
 This needs no credentials -- it's a pure reachability check, and it's fast (a few
-seconds). Read its first output line:
+seconds). Read the line matching `^ENV_(OK|BLOCKED)` (an environment notice may print before it):
 
 - **`ENV_OK`** -- every host is reachable. Continue to step 5.
 - **`ENV_BLOCKED: <host list>`** -- one or more hosts aren't reachable (most likely:

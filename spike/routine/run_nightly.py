@@ -23,7 +23,7 @@ Verdicts (see README.md "Exit codes and verdicts" for the full table):
 - `NIGHTLY_FAIL <reason>` (exit 2 checks / 3 publish / 4 extract) -- checks failed,
   extract crashed, the artifact failed to build, or neither store published. Alerted.
 
-With `--gate` (PRD-month-refresh.md Section 5 M5, PROMPT_gate.md): a fourth verdict,
+With `--gate` (PRD-month-refresh.md Section 5 M5, the routine prompt (ROUTINE-PROMPT.md)): a fourth verdict,
 `NIGHTLY_SKIP <reason>` (exit 0), prints and returns BEFORE any of the above runs --
 `refresh_gate.decide()` reads `run_log` and `refresh_requests` first and only starts
 the pipeline when its decision table says to. Without `--gate` nothing here changes:
@@ -251,7 +251,7 @@ def run_pipeline(args, trigger="nightly", request_row=""):
     and every return is now `(exit_code, ok_for_republish, pulled_at_mt)` instead of a
     bare exit code, so `run()`'s gate wrapper below knows whether to call
     `refresh_gate.mark_honored()` after this returns. `ok_for_republish` is True for
-    exactly NIGHTLY_OK and NIGHTLY_PARTIAL_OK (the two verdicts PROMPT.md/PROMPT_gate.md
+    exactly NIGHTLY_OK and NIGHTLY_PARTIAL_OK (the two verdicts PROMPT.md/the routine prompt (ROUTINE-PROMPT.md)
     treat as republish-worthy); `pulled_at_mt` is this run's `meta.pulled_at_mt` once
     the extract has produced `data`, else None. Every existing print/summary line is
     unchanged from the pre-gate behavior.

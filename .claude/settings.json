@@ -21,7 +21,8 @@
       "Bash(head:*)",
       "Bash(wc:*)",
       "Bash(test:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash([:*)"
     ]
   }
 }
