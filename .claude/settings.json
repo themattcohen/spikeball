@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(python3 spike/routine/run_nightly.py:*)",
+      "Bash(python3 spike/routine/alert.py:*)",
+      "Bash(python3 -m pytest:*)",
+      "Bash(nohup python3 spike/routine/run_nightly.py:*)",
+      "Bash(timeout:*)",
+      "Bash(tail:*)",
+      "Bash(grep:*)",
+      "Bash(cat:*)",
+      "Bash(kill:*)",
+      "Bash(mkdir:*)",
+      "Bash(curl:*)",
+      "Bash(ls:*)",
+      "Bash(git:*)",
+      "Bash(python3 --version:*)",
+      "Bash(echo:*)",
+      "Bash(date:*)",
+      "Bash(head:*)",
+      "Bash(wc:*)",
+      "Bash(test:*)",
+      "Bash(cd:*)"
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+# Runtime dependencies for the Spikeball Finance dashboard nightly routine.
+# Pinned to the versions verified locally (pip show); the routine's cloud sandbox
+# installs this file via `pip install -r requirements.txt` in the environment's
+# Setup script (see client-repo/README.md).
+requests==2.32.5
+requests-oauthlib==2.0.0
+tzdata==2025.2

@@ -1,0 +1,550 @@
+{
+  "balances": {
+    "1": 3326.85,
+    "109": 132838.49,
+    "112": 2591790.87,
+    "113": -12661.45,
+    "120": 3000346.04,
+    "123": 101568.43,
+    "124": 14746.53,
+    "212": 2032516.26,
+    "215": 86860.5,
+    "219": 8.18,
+    "230": 105530.38,
+    "232": 118916.96,
+    "236": 26764.13,
+    "238": 115310.95,
+    "239": 63000.0,
+    "243": 7161.33,
+    "244": -7161.33,
+    "249": 500000.0,
+    "264": 8194.22,
+    "265": 13250.92,
+    "275": 247.0,
+    "278": -481.07,
+    "279": 100501.5,
+    "280": 1107170.55,
+    "281": -4056.43,
+    "284": 78495.0,
+    "288": -13856.21,
+    "289": -15379.38,
+    "290": -203766.2,
+    "292": -18451.49,
+    "293": -17665.7,
+    "294": -16338.89,
+    "417": 632225.85,
+    "418": -311704.6,
+    "421": 356089.97,
+    "422": -269271.16,
+    "423": 162500.0,
+    "424": -58680.57,
+    "518": 169845.6,
+    "52": -3029757.79,
+    "526": -1905.56,
+    "528": -7916.96,
+    "529": 0.0,
+    "532": 0.0,
+    "535": 0.0,
+    "538": 0.0,
+    "547": 0.0,
+    "557": 24246.16,
+    "661": 56753.81,
+    "667": -9730.7,
+    "668": -11.55,
+    "796": 25347.22,
+    "801": -126573.65,
+    "802": 809842.0,
+    "806": -3021.13,
+    "809": 0.0,
+    "810": -10408.36,
+    "815": 38927.62,
+    "816": 425480.52,
+    "820": 0.0,
+    "840": 514000.0,
+    "845": 0.0,
+    "846": 763438.04,
+    "847": 213762.67,
+    "848": 50186.69,
+    "852": 106175.5,
+    "856": 0.0,
+    "860": 130583.9,
+    "861": 2118193.95,
+    "865": 546999.96,
+    "866": 104699.96,
+    "867": 50766.66,
+    "872": 21235.05,
+    "874": 312553.0,
+    "875": -169330.66,
+    "876": 273159.63,
+    "877": 1388412.16,
+    "878": 1990000.0,
+    "879": -14998.89,
+    "synthetic:net_income": 1779301.5
+  },
+  "resolution_log": [
+    {
+      "account_ids": [
+        "1"
+      ],
+      "label": "10101000 - Stripe - SCA (USD)"
+    },
+    {
+      "account_ids": [
+        "219"
+      ],
+      "label": "10101100 - Bill.com Money Out Clearing"
+    },
+    {
+      "account_ids": [
+        "230"
+      ],
+      "label": "10101610 - CIBC - 7399"
+    },
+    {
+      "account_ids": [
+        "816"
+      ],
+      "label": "10101650 - Byline - 8970"
+    },
+    {
+      "account_ids": [
+        "232"
+      ],
+      "label": "10101700 - Amazon Flow Through"
+    },
+    {
+      "account_ids": [
+        "877"
+      ],
+      "label": "10101750 - Highbeam - 1408"
+    },
+    {
+      "account_ids": [
+        "120"
+      ],
+      "label": "10102001 - Trade Receivable"
+    },
+    {
+      "account_ids": [
+        "801"
+      ],
+      "label": "10102200 - Allowances for Write-offs and Adjustments"
+    },
+    {
+      "account_ids": [
+        "815"
+      ],
+      "label": "10104000 - Other Receivables"
+    },
+    {
+      "account_ids": [
+        "212"
+      ],
+      "label": "10104100 - On Hand"
+    },
+    {
+      "account_ids": [
+        "518"
+      ],
+      "label": "10104200 - Inventory In Transit"
+    },
+    {
+      "account_ids": [
+        "215"
+      ],
+      "label": "10104300 - Inventory Transfers"
+    },
+    {
+      "account_ids": [
+        "236"
+      ],
+      "label": "10106000 - Other Current Asset"
+    },
+    {
+      "account_ids": [
+        "238"
+      ],
+      "label": "10106200 - Prepaid Expenses"
+    },
+    {
+      "account_ids": [
+        "239"
+      ],
+      "label": "10106300 - Security Deposits Asset"
+    },
+    {
+      "account_ids": [
+        "123"
+      ],
+      "label": "10103000 - Undeposited Funds"
+    },
+    {
+      "account_ids": [
+        "876"
+      ],
+      "label": "10105000 - Unreconciled Differences"
+    },
+    {
+      "account_ids": [
+        "547"
+      ],
+      "label": "GST Paid"
+    },
+    {
+      "account_ids": [
+        "243"
+      ],
+      "label": "10201100 - Cost - Computer Equipment"
+    },
+    {
+      "account_ids": [
+        "244"
+      ],
+      "label": "10201200 - A/D - Computer Equipment"
+    },
+    {
+      "account_ids": [
+        "417"
+      ],
+      "label": "10202100 - Cost - Property, Plant and Equipment"
+    },
+    {
+      "account_ids": [
+        "802"
+      ],
+      "label": "10202150 - Cost - Buildings and Improvements"
+    },
+    {
+      "account_ids": [
+        "418"
+      ],
+      "label": "10202200 - A/D - Property, Plant and Equipment"
+    },
+    {
+      "account_ids": [
+        "875"
+      ],
+      "label": "10202250 - A/D Buildings and Improvements"
+    },
+    {
+      "account_ids": [
+        "249"
+      ],
+      "label": "10203100 - Trademark - Cost"
+    },
+    {
+      "account_ids": [
+        "421"
+      ],
+      "label": "10205100 - Cost - Product Development"
+    },
+    {
+      "account_ids": [
+        "422"
+      ],
+      "label": "10205200 - A/D - Product Development"
+    },
+    {
+      "account_ids": [
+        "423"
+      ],
+      "label": "10206100 - Cost - Online/Tech"
+    },
+    {
+      "account_ids": [
+        "424"
+      ],
+      "label": "10206200 - A/D - Online/Tech"
+    },
+    {
+      "account_ids": [
+        "112"
+      ],
+      "label": "20101000 - Accounts Payable"
+    },
+    {
+      "account_ids": [
+        "856"
+      ],
+      "label": "20103001 - Divvy"
+    },
+    {
+      "account_ids": [
+        "809"
+      ],
+      "label": "20103200 - Parker"
+    },
+    {
+      "account_ids": [
+        "810"
+      ],
+      "label": "20102001 - Unearned Revenue"
+    },
+    {
+      "account_ids": [
+        "264"
+      ],
+      "label": "20104000 - 401K Employee Contrib-Payable"
+    },
+    {
+      "account_ids": [
+        "265"
+      ],
+      "label": "20105000 - 401K Employer Contrib-Payable"
+    },
+    {
+      "account_ids": [
+        "667"
+      ],
+      "label": "20106210 - Control Account - Fulfillment Cost"
+    },
+    {
+      "account_ids": [
+        "668"
+      ],
+      "label": "20106220 - Control Account - Merchant Account fees"
+    },
+    {
+      "account_ids": [
+        "113"
+      ],
+      "label": "20106300 - Operating - Accrued"
+    },
+    {
+      "account_ids": [
+        "796"
+      ],
+      "label": "20106400 - Misc - Accrued"
+    },
+    {
+      "account_ids": [
+        "845"
+      ],
+      "label": "20106035 - Interest Payable - Pat Kennedy"
+    },
+    {
+      "account_ids": [
+        "124"
+      ],
+      "label": "20110150 - Refunds Payable"
+    },
+    {
+      "account_ids": [
+        "879"
+      ],
+      "label": "20112210 - Unamortized Loan Fees - La Plata (Contra)"
+    },
+    {
+      "account_ids": [
+        "275"
+      ],
+      "label": "20111000 - Payroll Liabilities"
+    },
+    {
+      "account_ids": [
+        "820"
+      ],
+      "label": "20112100 - Byline - Line of Credit"
+    },
+    {
+      "account_ids": [
+        "878"
+      ],
+      "label": "20112200 - La Plata - Line of Credit"
+    },
+    {
+      "account_ids": [
+        "278"
+      ],
+      "label": "20113100 - Sales Tax Payable"
+    },
+    {
+      "account_ids": [
+        "109"
+      ],
+      "label": "20113101 - Sales Taxes Payable IL"
+    },
+    {
+      "account_ids": [
+        "661"
+      ],
+      "label": "20113102 - Sales Tax Payable"
+    },
+    {
+      "account_ids": [
+        "279"
+      ],
+      "label": "20113200 - VAT Control Account"
+    },
+    {
+      "account_ids": [
+        "280"
+      ],
+      "label": "20113300 - GST/HST Control Account"
+    },
+    {
+      "account_ids": [
+        "281"
+      ],
+      "label": "20114000 - Asset Financing"
+    },
+    {
+      "account_ids": [
+        "860"
+      ],
+      "label": "20116000 - Finance Liability - ST"
+    },
+    {
+      "account_ids": [
+        "528"
+      ],
+      "label": "20117000 - VAT Liability"
+    },
+    {
+      "account_ids": [
+        "557"
+      ],
+      "label": "20118000 - Customer Deposits"
+    },
+    {
+      "account_ids": [
+        "526",
+        "529",
+        "532",
+        "535",
+        "538"
+      ],
+      "label": "VAT on Sales",
+      "note": "workbook shows one blended value for 5 identically-named live accounts; full value assigned to id 526, 0.0 to the rest (bootstrap-only approximation)"
+    },
+    {
+      "account_ids": [
+        "861"
+      ],
+      "label": "201140100 - Finance Liability - LT"
+    },
+    {
+      "account_ids": [
+        "840"
+      ],
+      "label": "201170100 - Promissory NP LT - Patrick Kennedy"
+    },
+    {
+      "account_ids": [
+        "846"
+      ],
+      "label": "201170105 - Promissory NP LT - Chris Ruder"
+    },
+    {
+      "account_ids": [
+        "847"
+      ],
+      "label": "201170110 - Interest Payable LT- Chris Ruder"
+    },
+    {
+      "account_ids": [
+        "872"
+      ],
+      "label": "201170111 - Interest Payable LT - Adam Ruder"
+    },
+    {
+      "account_ids": [
+        "848"
+      ],
+      "label": "201170115 - Interest Payable LT- Pat Kennedy"
+    },
+    {
+      "account_ids": [
+        "852"
+      ],
+      "label": "201190101 - Promissory NP LT - Adam Ruder"
+    },
+    {
+      "account_ids": [
+        "284"
+      ],
+      "label": "30100000 - Capital Stock"
+    },
+    {
+      "account_ids": [
+        "865"
+      ],
+      "label": "30100010 - Matthew Ruder"
+    },
+    {
+      "account_ids": [
+        "866"
+      ],
+      "label": "30100020 - Ramsey Small"
+    },
+    {
+      "account_ids": [
+        "867"
+      ],
+      "label": "30100030 - Christopher Small"
+    },
+    {
+      "account_ids": [
+        "288"
+      ],
+      "label": "30401000 - Adam Ruder"
+    },
+    {
+      "account_ids": [
+        "289"
+      ],
+      "label": "30402000 - Barrett Small"
+    },
+    {
+      "account_ids": [
+        "290"
+      ],
+      "label": "30403000 - Chris Ruder"
+    },
+    {
+      "account_ids": [
+        "292"
+      ],
+      "label": "30405000 - Matthew Ruder"
+    },
+    {
+      "account_ids": [
+        "293"
+      ],
+      "label": "30406000 - Patrick Kennedy"
+    },
+    {
+      "account_ids": [
+        "294"
+      ],
+      "label": "30407000 - Timothy Kennedy"
+    },
+    {
+      "account_ids": [
+        "806"
+      ],
+      "label": "30408000 - Paul Palmer"
+    },
+    {
+      "account_ids": [
+        "874"
+      ],
+      "label": "30100002 - Additional Paid In Capital"
+    },
+    {
+      "account_ids": [
+        "52"
+      ],
+      "label": "Retained Earnings"
+    },
+    {
+      "account_ids": [
+        "synthetic:net_income"
+      ],
+      "label": "Net Income",
+      "note": "computed P&L rollup, not a GL account"
+    }
+  ],
+  "source": "BOOTSTRAP from workbook fixture 'inputs/cfo-july-financials-forecast-2026-08-27.xlsx' (column for 2026-06). NOT a production anchor -- production must overwrite this from a cr=-202 pull at each close.",
+  "ym": "2026-06"
+}

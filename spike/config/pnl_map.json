@@ -1,0 +1,49 @@
+{
+  "_comment": "CFO P&L line map for v2 (actual-only). Account numbers from IncomeStatement_2026 (research/06 2.2, 2.4). Gross Revenue = Sales+Tournaments+Shipping; Net Revenue = all Income-type accounts. COGS block = COGS+InvAdj+Merchant+Fulfillment. EBITDA add-backs confirmed by ebitda_parity (research claudedocs/vc-*).",
+  "gross_revenue_accounts": [
+    "40100000",
+    "40104000",
+    "40105000"
+  ],
+  "gross_component_labels": {
+    "40100000": "gross_sales",
+    "40104000": "tournaments",
+    "40105000": "shipping"
+  },
+  "discount_accounts": [
+    "40201100",
+    "40201200",
+    "40201300",
+    "40201400",
+    "40201500",
+    "40201600",
+    "40201700"
+  ],
+  "refund_accounts": [
+    "40202000"
+  ],
+  "return_accounts": [
+    "40300000"
+  ],
+  "cogs_block_accounts": [
+    "50100000",
+    "50200000",
+    "50300000",
+    "50404000"
+  ],
+  "inventory_adjustment_account": "50200000",
+  "ebitda_addback_accounts": {
+    "bank_interest": "80200000",
+    "other_interest": "80200100",
+    "depreciation_amortization": "70000000"
+  },
+  "income_accttypes": [
+    "Income",
+    "OthIncome"
+  ],
+  "expense_accttypes": [
+    "COGS",
+    "Expense",
+    "OthExpense"
+  ]
+}

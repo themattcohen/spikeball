@@ -1,0 +1,24 @@
+{
+  "_comment": "Channel roll-up per owner rulings R6/R7 (PRD Section 12). Ids are NetSuite cseg_appf_channel ids; labels are read live and never hardcoded. Spikeball.com is always its own line. Edit here, never in code.",
+  "groups": [
+    {"key": "amazon", "label": "Amazon", "channel_ids": [1], "color_light": "#2A78D6", "color_dark": "#3987E5", "show_margin": true},
+    {"key": "wholesale", "label": "Wholesale", "channel_ids": [2, 3, 4], "color_light": "#EB6834", "color_dark": "#D95926", "show_margin": true},
+    {"key": "dtc", "label": "Spikeball.com", "channel_ids": [5], "color_light": "#1BAF7A", "color_dark": "#199E70", "show_margin": true},
+    {"key": "other_b2b", "label": "Other B2B", "channel_ids": [6, 7, 8, 101, 102, 103], "color_light": "#9A9F9A", "color_dark": "#6E746E", "show_margin": false, "margin_note": "not economic as coded (Corporate carries COGS with almost no revenue; Fwango the reverse)"}
+  ],
+  "unassigned": {"key": "unassigned", "label": "Unassigned", "color_light": "#D2D6D0", "color_dark": "#3A403B"},
+  "dtc_channel_id": 5,
+  "amazon_channel_id": 1,
+  "regions": {
+    "_comment": "Ruling R7: US vs Other for Spikeball.com. Region ids from cseg_appf_region. Spreetail-USA (8) and Pattern (9, 10) are resellers, not geographies: flagged as data quality, never folded into Other.",
+    "us_region_ids": [1],
+    "data_quality_region_ids": [8, 9, 10]
+  },
+  "protected_tabs": ["Demand Plan"],
+  "_protected_tabs_comment": "CFO-owned Sheet tabs the pipeline may only ever READ, never write (research/09-cfo-input-mechanism-design.md Section 3). publish_sheet.py filters these out of every write set and refuses to write anything at all if one somehow still shows up after filtering. 'CFO Inputs' (PRD-v2.md:264) joins this list only if that separate, still-DEFERRED mechanism ships.",
+  "period_rule": "through_yesterday_close",
+  "features": {
+    "amazon_aov": true,
+    "_comment": "amazon_aov: Orders API infrastructure is built dormant (owner 2026-08-26); flip to true to show Amazon order count and AOV tiles."
+  }
+}

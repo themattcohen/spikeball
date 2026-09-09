@@ -1,0 +1,9 @@
+spike/data/
+spike/state/
+__pycache__/
+*.pyc
+.pytest_cache/
+design/mockup/shots/
+design/mockup/dashboard.html
+design/mockup/dashboard.artifact.html
+handoff/secrets.env

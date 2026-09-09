@@ -3,9 +3,9 @@
 ## Why this matters
 
 Right now, two routines can both be refreshing the dashboard: the older one, on a
-different account, still runs every night at 03:00 MT and publishes its own page; the
-new one this packet set up runs on the schedule in `OPERATIONS.md`, with its nightly
-run deliberately placed an hour apart (04:00 MT during MDT, rather than 03:00 MT) so
+different account, still runs every night at 02:00 MST / 03:00 MDT and publishes its
+own page; the new one this packet set up runs on the schedule in `OPERATIONS.md`, with
+its nightly run deliberately placed an hour later (03:00 MST / 04:00 MDT) so
 the two never write in the same hour. Both routines write to the same Google Sheet,
 the same BigQuery dataset, and the same Drive file that holds the pipeline's
 carry-forward state. If they ever ran in the same hour, the two writes could
@@ -29,8 +29,8 @@ older page's link at the new dashboard's url instead.
 ## Step 2: move the new routine's nightly run to its final hour
 
 With the older routine disabled, there's no longer a collision to avoid, so move the
-new routine's nightly run from 04:00 MT (MDT) back to the older routine's original
-03:00 MT slot:
+new routine's nightly run from 03:00 MST / 04:00 MDT back to the older routine's
+original 02:00 MST / 03:00 MDT slot:
 
 1. At claude.ai/code/routines, open `Spikeball Finance refresh` and edit its cron
    expression from `0 0,10,13-23 * * *` to `0 0,9,13-23 * * *` (only the `10` changes

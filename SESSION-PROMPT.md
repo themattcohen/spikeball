@@ -1,33 +1,44 @@
 You are setting up the Spikeball Finance dashboard's scheduled refresh on this Claude
-Code account. A human is attaching a zip packet to this message. Do the setup
-described below yourself, in order, and stop exactly where told to stop and wait for
-the human -- do not skip a stop point, do not guess a value you're told to ask for.
+Code account. This session already starts inside a checkout of the dashboard's GitHub
+repository -- there is no zip to extract and nothing to attach. Do the setup described
+below yourself, in order, and stop exactly where told to stop and wait for the human
+-- do not skip a stop point, do not guess a value you're told to ask for.
 
-## 0. Get the packet open
+If a routine already exists for this dashboard and its scheduled runs aren't
+completing (rather than this being a first-time setup), read `handoff/UNBLOCK.md`
+instead of this file -- it's the ordered checklist for that specific situation and
+supersedes the steps below.
 
-If the attached zip isn't already extracted into your working directory, extract it
-first. Confirm you can see these files before continuing: `README-HANDOFF.md`,
-`ROUTINE-PROMPT.md`, `OPERATIONS.md`, `VERIFY.md`, `CUTOVER.md`. Read `ROUTINE-PROMPT.md`
-in full now -- it is the exact text you will hand to the routine you create in step 3,
-and its Environment section names every variable the routine's cloud environment must
-have.
+## 0. Confirm the checkout
+
+Confirm you can see these files in your working directory before continuing:
+`handoff/README-HANDOFF.md`, `spike/routine/PROMPT_gate.md` (this is
+`ROUTINE-PROMPT.md`, referred to by that name below), `OPERATIONS.md`,
+`handoff/VERIFY.md`, `handoff/CUTOVER.md`. If any are missing, stop and report exactly
+which paths you looked for and what's actually present -- this means the repository
+checkout is incomplete or the environment is pointed at the wrong repository. Read
+`ROUTINE-PROMPT.md` in full now -- it is the exact text you will hand to the routine
+you create in step 3, and its Environment section names every variable the routine's
+cloud environment must have.
 
 ## 1. Confirm the cloud environment exists and is configured correctly
 
 List your cloud environments. Find one named exactly `Spikeball Finance`.
 
 - If no environment with that name exists, or it exists but its network access is not
-  set to `Full`: **stop here.** Tell the human: create (or fix) a cloud environment
-  named `Spikeball Finance` with network access `Full`, following `README-HANDOFF.md`
-  step 1, then reply here when it's done. When they reply, list environments again and
-  re-check before continuing.
-- Once it exists with `Full` network access: ask the human to confirm they pasted the
-  complete credentials block into that environment's Environment variables (you
-  cannot read the variable values yourself to check this). Wait for their
-  confirmation before continuing -- if a variable is missing, the routine's own first
-  run will catch it and report exactly which name is missing (see step 5 below), but
-  don't proceed to create the routine until the human has confirmed they pasted the
-  block.
+  set to `Full`, or it has no repository attached: **stop here.** Tell the human:
+  create (or fix) a cloud environment named `Spikeball Finance` with network access
+  `Full`, the dashboard's repository attached, and a Setup script of
+  `pip install -r requirements.txt`, following `README-HANDOFF.md` step 1, then reply
+  here when it's done. When they reply, list environments again and re-check before
+  continuing.
+- Once it exists with `Full` network access and the repository attached: ask the human
+  to confirm they pasted the complete credentials block into that environment's
+  Environment variables (you cannot read the variable values yourself to check this).
+  Wait for their confirmation before continuing -- if a variable is missing, the
+  routine's own first run will catch it and report exactly which name is missing (see
+  step 5 below), but don't proceed to create the routine until the human has confirmed
+  they pasted the block.
 
 ## 2. Note the environment id
 
@@ -48,7 +59,7 @@ job_config.ccr:
   environment_id: <the id you recorded in step 2>
   session_context:
     model: "claude-sonnet-5"
-    sources: []
+    sources: [<the dashboard repository, tracking its default branch>]
     allowed_tools: ["Bash", "Artifact"]
   events:
     - data:
@@ -61,8 +72,15 @@ job_config.ccr:
           content: <the full text of ROUTINE-PROMPT.md, verbatim>
 ```
 
-No repository source is configured (`sources: []` is intentional, not an omission) --
-the routine downloads its own code every run, per `ROUTINE-PROMPT.md` step 2.
+The repository source matters: it is what lets the routine's session start inside a
+reviewed checkout, with the exact commands `ROUTINE-PROMPT.md` runs already declared
+as allowed in that repository's own `.claude/settings.json`. If your scheduling tool's
+`sources` field doesn't accept a repository, or `allowed_tools` isn't settable through
+it, stop and tell the human to finish this step at `claude.ai/code/routines` instead --
+the routine's edit screen there exposes both the repository source and the permission
+settings even when the API-level tool doesn't. Do not create the routine with
+`sources: []` (no repository) as a workaround; that reproduces the exact block this
+setup exists to fix.
 
 ## 4. Run it once now
 
@@ -80,6 +98,10 @@ take several minutes.
   `Spikeball Finance` environment. Once they confirm, go back to step 4 and run again.
 - **`ENV_BLOCKED: oauth2.googleapis.com unreachable`**: the environment's network
   access is not actually `Full`. Tell the human to fix it, then go back to step 4.
+- **`CHECKOUT_MISSING <paths>`**: the environment's repository source isn't attached,
+  or is pointed at the wrong repository or branch. Tell the human which paths were
+  missing, ask them to fix the environment's repository setting, then go back to
+  step 4.
 - **`NIGHTLY_FAIL <reason>`**: something in the pipeline failed on a real attempt.
   Report the reason to the human as-is; this is not something to retry yourself.
 - **`ARTIFACT_URL <url>` printed, with `NIGHTLY_OK` or `NIGHTLY_PARTIAL_OK`**: this is

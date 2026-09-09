@@ -1,0 +1,3795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Spikeball Finance</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+/* ============================== TOKENS ============================== */
+:root{
+  color-scheme: light;
+  --page:#F6F7F4;
+  --surface:#FCFCFB;
+  --ink:#14171A;
+  --ink-2:#4F5551;
+  --muted:#858B85;
+  --grid:#E2E4DE;
+  --rule:#C6CAC3;
+  --accent:#F2C516;
+
+  --status-good:#0CA30C;
+  --status-warning:#FAB219;
+  --status-serious:#EC835A;
+  --status-critical:#D03B3B;
+
+  --delta-pos:#006300;
+  --delta-neg:#B3261E;
+
+  --card-ring: rgba(11,11,11,0.10);
+  --focus-ring: #2A78D6;
+
+  --font-display:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
+  --font-sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --page:#101412;
+    --surface:#181C19;
+    --ink:#F3F4F1;
+    --ink-2:#B9BEB8;
+    --muted:#858B85;
+    --grid:#2A2F2B;
+    --rule:#3A403B;
+    --accent:#F2C516;
+
+    --delta-pos:#0CA30C;
+    --delta-neg:#E2785F;
+
+    --card-ring: rgba(255,255,255,0.10);
+    --focus-ring:#3987E5;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --page:#101412;
+  --surface:#181C19;
+  --ink:#F3F4F1;
+  --ink-2:#B9BEB8;
+  --muted:#858B85;
+  --grid:#2A2F2B;
+  --rule:#3A403B;
+  --accent:#F2C516;
+
+  --delta-pos:#0CA30C;
+  --delta-neg:#E2785F;
+
+  --card-ring: rgba(255,255,255,0.10);
+  --focus-ring:#3987E5;
+}
+
+/* ============================== RESET / BASE ============================== */
+*, *::before, *::after{ box-sizing:border-box; }
+html{ -webkit-text-size-adjust:100%; }
+[hidden]{ display:none !important; }
+body{
+  margin:0;
+  background:var(--page);
+  color:var(--ink);
+  font-family:var(--font-sans);
+  font-size:15px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+h1,h2,h3,h4{ margin:0; font-weight:600; text-wrap:balance; }
+p{ margin:0; }
+button{ font-family:inherit; }
+table{ border-collapse:collapse; width:100%; }
+.mono{ font-family:var(--font-mono); }
+.vh{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+:focus-visible{ outline:2px solid var(--focus-ring); outline-offset:2px; border-radius:3px; }
+.skip-link{ position:absolute; left:8px; top:-48px; background:var(--surface); color:var(--ink); padding:8px 12px; border-radius:4px; border:1px solid var(--rule); z-index:200; transition:top .15s; }
+.skip-link:focus{ top:8px; }
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; scroll-behavior:auto !important; }
+}
+
+/* ============================== LAYOUT ============================== */
+.page-wrap{ max-width:1280px; margin:0 auto; padding:0 24px 64px; }
+main{ display:flex; flex-direction:column; gap:56px; margin-top:34px; }
+section > h2{ font-size:20px; margin-bottom:14px; letter-spacing:-0.005em; }
+.section-sub{ color:var(--ink-2); font-size:13px; margin:-9px 0 16px; max-width:65ch; }
+
+.card{
+  background:var(--surface);
+  border:1px solid var(--card-ring);
+  border-radius:6px;
+  padding:18px 20px;
+}
+.card-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.card-head h3{ font-size:15px; }
+.card-sub{ color:var(--muted); font-size:12px; margin-top:2px; }
+
+.overflow-x{ overflow-x:auto; }
+.card-controls{ display:flex; gap:8px; align-items:center; flex:none; }
+
+/* ============================== HEADER ============================== */
+.app-header{ border-bottom:1px solid var(--rule); background:var(--surface); }
+.header-inner{
+  max-width:1280px; margin:0 auto; padding:18px 24px;
+  display:flex; flex-wrap:wrap; align-items:center; gap:14px 24px;
+}
+.brand{ display:flex; align-items:center; gap:10px; margin-right:auto; }
+.ball-mark{ flex:none; }
+.ball-fill{ fill:var(--accent); }
+.ball-seam{ fill:none; stroke:var(--ink); stroke-width:1.1; opacity:.55; }
+.brand h1{
+  font-family:var(--font-display); font-weight:600; font-size:22px;
+  letter-spacing:.01em; color:var(--ink);
+}
+.asof{ font-size:12px; color:var(--muted); white-space:nowrap; }
+.period-selector{ display:flex; border:1px solid var(--rule); border-radius:6px; overflow:hidden; }
+.period-btn{
+  background:var(--surface); color:var(--ink-2); border:none; cursor:pointer;
+  font-size:12px; font-weight:500; padding:7px 13px; letter-spacing:.02em;
+  border-right:1px solid var(--rule);
+}
+.period-btn:last-child{ border-right:none; }
+.period-btn[aria-pressed="true"]{ background:var(--ink); color:var(--page); }
+.period-btn:hover:not([aria-pressed="true"]){ background:var(--grid); }
+
+.theme-toggle{
+  background:var(--surface); border:1px solid var(--rule); border-radius:6px;
+  width:32px; height:32px; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; color:var(--ink-2); flex:none;
+}
+.theme-toggle:hover{ border-color:var(--ink-2); color:var(--ink); }
+
+/* ============================== FRESHNESS PILL ============================== */
+.freshness{
+  display:flex; align-items:center; gap:8px; background:var(--page); min-width:0;
+  border:1px solid var(--rule); border-radius:999px; padding:6px 8px 6px 12px;
+  font-size:12px; color:var(--ink-2); white-space:nowrap;
+}
+.freshness-dot{ width:7px; height:7px; border-radius:50%; flex:none; background:var(--muted); }
+.freshness-dot.fresh{ background:var(--status-good); }
+.freshness-dot.stale{ background:var(--status-warning); }
+.freshness-cadence{ color:var(--muted); }
+.freshness-refresh{
+  display:inline-flex; align-items:center; gap:5px; background:var(--surface);
+  border:1px solid var(--rule); border-radius:999px; color:var(--ink-2);
+  font-size:11.5px; font-weight:500; padding:4px 10px 4px 8px; cursor:pointer; flex:none;
+}
+.freshness-refresh:hover{ border-color:var(--ink-2); color:var(--ink); }
+
+/* ============================== SECTION NAV ============================== */
+.section-nav{ position:sticky; top:0; z-index:140; background:var(--surface); border-bottom:1px solid var(--rule); }
+.section-nav-inner{
+  max-width:1280px; margin:0 auto; padding:0 24px; display:flex; gap:2px;
+  overflow-x:auto; scrollbar-width:thin;
+}
+.section-nav-inner::-webkit-scrollbar{ height:4px; }
+.section-nav-link{
+  background:none; border:none; border-bottom:2px solid transparent; color:var(--ink-2);
+  font-size:12.5px; font-weight:500; padding:11px 12px; white-space:nowrap; cursor:pointer; flex:none;
+}
+.section-nav-link:hover{ color:var(--ink); }
+.section-nav-link[aria-current="true"]{ color:var(--ink); font-weight:600; border-bottom-color:var(--accent); }
+
+/* ============================== STALE BANNER ============================== */
+.stale-banner{
+  display:flex; align-items:center; gap:9px; background:var(--surface);
+  border:1px solid var(--status-warning); color:var(--ink); border-radius:6px;
+  padding:11px 15px; font-size:13px; font-weight:500;
+}
+.stale-banner svg{ color:var(--status-warning); flex:none; }
+
+/* ============================== KPI BLOCK ==============================
+   Board-deck lead: exactly ONE hero figure per view, with the remaining
+   measures as quieter supporting tiles. The hero is set in the body sans,
+   never the display face (a display face at this size reads as decoration),
+   and uses proportional figures: tabular-nums gives every digit the width
+   of a zero, which looks loose at display sizes. Tabular figures stay in
+   the table columns where vertical alignment matters. */
+.kpi-block{ display:flex; flex-direction:column; gap:16px; }
+
+.kpi-hero{
+  background:var(--surface); border:1px solid var(--card-ring); border-radius:6px;
+  padding:34px 36px 30px;
+  display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);
+  gap:28px 44px; align-items:end;
+}
+.kpi-hero.is-focused{ border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+.kpi-hero-main{ min-width:0; }
+.kpi-hero-label{
+  font-size:12px; text-transform:uppercase; letter-spacing:.08em;
+  color:var(--muted); font-weight:500; margin-bottom:10px;
+}
+.kpi-hero-value{
+  font-family:var(--font-sans); font-weight:600; color:var(--ink);
+  font-size:clamp(46px, 6.6vw, 76px); line-height:1.02;
+  letter-spacing:-0.015em; font-variant-numeric:proportional-nums;
+}
+.kpi-hero-meta{ display:flex; flex-wrap:wrap; align-items:center; gap:8px 18px; margin-top:16px; }
+.kpi-hero-meta .kpi-delta{ font-size:14px; }
+.kpi-hero-aside{ font-size:13px; color:var(--ink-2); }
+.kpi-hero-sub{ font-size:12px; color:var(--status-warning); font-weight:500; }
+.kpi-hero-trend{ min-width:0; }
+.kpi-hero-trend svg{ width:100%; height:auto; display:block; }
+.kpi-hero-trend-cap{ font-size:12px; color:var(--muted); margin-top:10px; }
+@media (max-width:860px){
+  .kpi-hero{ grid-template-columns:1fr; padding:26px 22px 22px; align-items:start; gap:22px; }
+}
+
+/* Six tracks so the four single tiles plus the two-track life-to-date tile all
+   land on one row. At the 1280px content width that is a 192px track, which is
+   why the life-to-date sparkline below is drawn on a 400px viewBox (2 tracks +
+   the gap): a sparkline stretched past its viewBox scales its stroke and its
+   endpoint dot with it, which is what made it look bloated. */
+.kpi-row{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(168px,1fr)); gap:16px;
+}
+#kpi-ltd{ grid-column:span 2; }
+#kpi-ltd .kpi-ltd-rows{ margin-top:4px; }
+.kpi-tile{
+  background:var(--surface); border:1px solid var(--card-ring); border-radius:6px;
+  padding:18px 18px 16px; display:flex; flex-direction:column; gap:7px;
+  position:relative;
+}
+.kpi-tile.is-focused{ border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+.kpi-tile-clickable{ cursor:pointer; transition:border-color .12s ease; }
+.kpi-tile-clickable:hover{ border-color:var(--ink-2); }
+.kpi-tile-clickable:focus-visible{ outline:2px solid var(--focus-ring); outline-offset:2px; }
+.kpi-label{ font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:500; }
+.kpi-value{
+  font-family:var(--font-sans); font-weight:600; font-size:26px; color:var(--ink);
+  line-height:1.1; font-variant-numeric:proportional-nums;
+}
+.kpi-delta{ display:flex; align-items:center; gap:4px; font-size:12.5px; font-weight:500; }
+.kpi-delta svg{ flex:none; }
+.kpi-delta.pos{ color:var(--delta-pos); }
+.kpi-delta.neg{ color:var(--delta-neg); }
+.kpi-delta.flat{ color:var(--ink-2); }
+.kpi-delta-label{ color:var(--muted); font-weight:400; }
+.kpi-provisional{ font-size:11px; color:var(--status-warning); font-weight:500; }
+.kpi-spark{ margin-top:auto; padding-top:6px; }
+.kpi-ltd-rows{ display:flex; flex-direction:column; gap:5px; margin-top:2px; }
+.kpi-ltd-row{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.kpi-ltd-row .l{ font-size:12px; color:var(--ink-2); }
+.kpi-ltd-row .v{ font-size:16px; font-weight:600; font-variant-numeric:proportional-nums; }
+
+/* ============================== CHARTS (shared) ============================== */
+.chart-viz{ width:100%; }
+.chart-viz svg{ width:100%; height:auto; display:block; overflow:visible; }
+.chart-table-wrap{ margin-top:4px; }
+.table-toggle{
+  background:var(--surface); color:var(--ink-2); border:1px solid var(--rule); border-radius:5px;
+  font-size:12px; padding:5px 10px; cursor:pointer; flex:none; font-weight:500;
+}
+.table-toggle[aria-pressed="true"]{ background:var(--ink); color:var(--page); border-color:var(--ink); }
+.table-toggle:hover{ border-color:var(--ink-2); }
+
+.legend{ display:flex; flex-wrap:wrap; gap:4px 16px; margin-bottom:10px; }
+.legend-item{
+  display:flex; align-items:center; gap:6px; background:none; border:none; cursor:pointer;
+  padding:3px 4px; font-size:12.5px; color:var(--ink-2); border-radius:4px;
+}
+.legend-item:hover{ background:var(--grid); }
+.legend-swatch{ width:10px; height:10px; border-radius:2px; flex:none; }
+.legend-item.legend-static{ cursor:default; }
+.legend-item.legend-static:hover{ background:none; }
+.legend-line-swatch{ width:14px; height:2px; flex:none; background:var(--ink-2); }
+
+.axis-label, .tick-label{ fill:var(--muted); font-size:10.5px; font-family:var(--font-sans); }
+.grid-line{ stroke:var(--grid); stroke-width:1; shape-rendering:crispEdges; }
+.baseline-line{ stroke:var(--rule); stroke-width:1; shape-rendering:crispEdges; }
+.crosshair-line{ stroke:var(--ink-2); stroke-width:1; stroke-dasharray:0; pointer-events:none; opacity:0; }
+.direct-label{ fill:var(--ink-2); font-size:10.5px; font-family:var(--font-sans); font-weight:500; }
+.seg-hit{ cursor:pointer; }
+.seg-hit:focus{ outline:2px solid var(--focus-ring); outline-offset:1px; }
+
+/* ============================== TOOLTIP ============================== */
+.tooltip{
+  position:fixed; z-index:500; background:var(--ink); color:var(--page);
+  border-radius:6px; padding:9px 11px; font-size:12.5px; pointer-events:none;
+  max-width:260px; box-shadow:0 4px 14px rgba(0,0,0,.22);
+}
+.tooltip .tt-title{ font-weight:600; margin-bottom:5px; font-size:12.5px; }
+.tooltip .tt-row{ display:flex; align-items:center; gap:6px; justify-content:space-between; padding:1.5px 0; }
+.tooltip .tt-key{ width:12px; height:3px; border-radius:2px; flex:none; }
+.tooltip .tt-name{ flex:1; color:#D9DBD5; }
+.tooltip .tt-val{ font-weight:600; font-variant-numeric:tabular-nums; }
+.tooltip .tt-total{ border-top:1px solid rgba(255,255,255,.18); margin-top:5px; padding-top:5px; }
+
+/* ============================== TABLES ============================== */
+.data-table{ font-size:13px; }
+.data-table th{ text-align:right; font-weight:600; color:var(--ink-2); padding:7px 10px; border-bottom:1px solid var(--rule); font-size:11.5px; text-transform:uppercase; letter-spacing:.03em; white-space:nowrap; }
+.data-table th:first-child, .data-table td:first-child{ text-align:left; }
+.data-table td{ text-align:right; padding:7px 10px; border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.data-table tbody tr:last-child td{ border-bottom:none; }
+.data-table tr.total-row td{ font-weight:600; border-top:1px solid var(--rule); border-bottom:none; }
+.data-table tr.clickable{ cursor:pointer; }
+.data-table tr.clickable:hover{ background:var(--grid); }
+.data-table tr.clickable:focus-visible{ outline:2px solid var(--focus-ring); outline-offset:-2px; }
+.row-label{ display:flex; align-items:center; gap:8px; }
+.row-swatch{ width:9px; height:9px; border-radius:2px; flex:none; }
+.margin-cell .margin-value{ }
+.flag-note{ display:flex; align-items:center; gap:4px; justify-content:flex-end; font-size:10.5px; color:var(--status-warning); font-weight:500; margin-top:2px; text-align:right; white-space:normal; max-width:150px; margin-left:auto; cursor:help; }
+.flag-note svg{ flex:none; margin-top:1px; }
+.neg-onhand{ color:var(--status-critical); font-weight:600; }
+.kit-note{ color:var(--muted); font-style:normal; font-size:12.5px; }
+.na-cell{ color:var(--muted); }
+
+/* ============================== CHANNEL SECTION ============================== */
+.channel-grid{ display:grid; grid-template-columns:1.5fr 1fr; gap:16px; align-items:start; }
+
+/* ============================== MOVING SECTION ============================== */
+.moving-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+.sku-list{ display:flex; flex-direction:column; gap:9px; margin-top:2px; }
+.sku-row{
+  display:grid; grid-template-columns:1fr 2.1fr auto; gap:10px; align-items:center;
+  background:none; border:none; text-align:left; cursor:pointer; padding:3px 4px; border-radius:5px; width:100%;
+}
+.sku-row:hover{ background:var(--grid); }
+.sku-row-label{ min-width:0; }
+.sku-code{ display:block; font-family:var(--font-mono); font-size:11px; color:var(--ink-2); }
+.sku-name{ display:block; font-size:12.5px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sku-track{ height:10px; background:var(--grid); border-radius:3px; overflow:hidden; position:relative; }
+.sku-fill{ height:100%; border-radius:3px 0 0 3px; }
+.sku-fill.is-top{ border-radius:3px; }
+.sku-row-value{ text-align:right; }
+.sku-revenue{ display:block; font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums; }
+.sku-units{ display:block; font-size:10.5px; color:var(--muted); font-variant-numeric:tabular-nums; }
+.concentration-note{ margin-top:12px; padding-top:10px; border-top:1px solid var(--grid); font-size:12px; color:var(--ink-2); }
+.concentration-note b{ color:var(--ink); font-weight:600; }
+
+/* ============================== DRILL PANELS ============================== */
+.drill-panel{ margin-top:16px; }
+.drill-panel-inner{ border:1px solid var(--accent); border-radius:7px; padding:18px 20px; background:var(--surface); }
+.drill-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+.drill-head h3{ font-size:16px; }
+.drill-eyebrow{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:2px; }
+.drill-close{
+  background:none; border:1px solid var(--rule); border-radius:5px; width:28px; height:28px;
+  display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink-2); flex:none;
+}
+.drill-close:hover{ border-color:var(--ink-2); color:var(--ink); }
+.drill-grid{ display:grid; grid-template-columns:1.3fr 1fr; gap:16px; }
+.drill-grid.single{ grid-template-columns:1fr; }
+.region-rows{ display:flex; flex-direction:column; gap:8px; margin-top:4px; }
+.region-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px; }
+.region-row .l{ color:var(--ink-2); }
+.region-row .v{ font-variant-numeric:tabular-nums; font-weight:500; }
+.region-sub-rows{ margin:4px 0 0 0; padding-left:14px; display:flex; flex-direction:column; gap:4px; border-left:2px solid var(--grid); }
+.region-sub-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:11.5px; color:var(--muted); }
+.region-sub-row .v{ font-variant-numeric:tabular-nums; }
+.dq-flag{ margin-top:10px; padding:9px 10px; border-radius:5px; background:var(--grid); font-size:12px; color:var(--ink-2); display:flex; gap:7px; align-items:flex-start; }
+.dq-flag svg{ flex:none; margin-top:1px; color:var(--status-warning); }
+
+/* ============================== INVENTORY ============================== */
+.inv-summary{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:16px; }
+.status-tile{ background:var(--surface); border:1px solid var(--card-ring); border-radius:6px; padding:14px 16px; }
+.status-line{ display:flex; align-items:center; gap:8px; margin-top:6px; }
+.status-line svg{ flex:none; }
+.status-line.good{ color:var(--status-good); }
+.status-line.warning{ color:var(--status-warning); }
+.status-line.serious{ color:var(--status-serious); }
+.status-line.critical{ color:var(--status-critical); }
+.status-line-text{ font-size:13px; color:var(--ink); font-weight:500; }
+.status-tile .kpi-value{ font-size:26px; }
+.checks-line{ font-size:12px; color:var(--ink-2); margin-top:8px; }
+
+/* ============================== AMAZON / RETURNS NOTE ============================== */
+.quiet-note{
+  border:1px solid var(--rule); border-radius:6px; padding:14px 16px; color:var(--ink-2); font-size:13px;
+  background:var(--surface); display:flex; gap:10px; align-items:flex-start;
+}
+.quiet-note svg{ flex:none; margin-top:2px; color:var(--muted); }
+.mp-caption{ font-size:11.5px; color:var(--muted); margin-top:10px; }
+
+/* ============================== FINANCIALS (V2 ACTUAL-ONLY) ============================== */
+.kpi-row-3{ grid-template-columns:repeat(2,1fr) 1.6fr; }
+.acct-row-label{ display:flex; align-items:baseline; gap:8px; }
+.acct-number{ font-family:var(--font-mono); font-size:11px; color:var(--muted); flex:none; }
+.data-table tr.group-row td{ background:var(--grid); font-weight:600; text-transform:uppercase; font-size:11px; letter-spacing:.04em; color:var(--ink-2); padding-top:9px; padding-bottom:9px; border-bottom:1px solid var(--grid); }
+.data-table tr.group-row td:first-child{ text-align:left; }
+.data-table tr.group-row.clickable{ cursor:pointer; }
+.data-table tr.group-row.clickable:hover td{ background:var(--rule); }
+.data-table tr.group-row.clickable:focus-visible{ outline:2px solid var(--focus-ring); outline-offset:-2px; }
+.bs-group-toggle-label{ display:inline-flex; align-items:center; gap:6px; }
+.bs-chevron{ display:inline-flex; transition:transform .15s ease; color:var(--muted); }
+.bs-chevron.is-open{ transform:rotate(90deg); }
+.bs-check-line{ display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:500; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--grid); }
+.bs-check-line.pass{ color:var(--status-good); }
+.bs-check-line.fail{ color:var(--status-critical); }
+.bs-check-line svg{ flex:none; }
+.data-table tr.grand-total td{ border-top:2px solid var(--ink); font-weight:700; }
+.wc-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.wc-summary-line{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:8px 0; font-size:13px; border-bottom:1px solid var(--grid); }
+.wc-summary-line:last-child{ border-bottom:none; }
+.wc-summary-line .l{ color:var(--ink-2); }
+.wc-summary-line .v{ font-weight:600; font-variant-numeric:tabular-nums; }
+
+/* ============================== FOOTER ============================== */
+.app-footer{ margin-top:8px; border-top:1px solid var(--rule); padding-top:20px; font-size:12.5px; color:var(--ink-2); }
+.footer-grid{ display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+.app-footer h4{ font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:8px; }
+.app-footer ul{ margin:0; padding-left:18px; display:flex; flex-direction:column; gap:5px; }
+.app-footer p{ margin-bottom:8px; }
+.self-check-badge{ display:inline-flex; align-items:center; gap:5px; font-weight:600; }
+.self-check-badge.pass{ color:var(--status-good); }
+.self-check-badge.fail{ color:var(--status-critical); }
+.footer-note{ margin-top:16px; padding-top:14px; border-top:1px solid var(--grid); }
+.check-pass{ color:var(--status-good); font-weight:600; }
+.check-fail{ color:var(--status-critical); font-weight:600; }
+
+/* ============================== RESPONSIVE ============================== */
+@media (max-width:980px){
+  .kpi-row{ grid-template-columns:repeat(2,1fr); }
+  .channel-grid{ grid-template-columns:1fr; }
+  .moving-grid{ grid-template-columns:1fr; }
+  .drill-grid{ grid-template-columns:1fr; }
+  .inv-summary{ grid-template-columns:1fr; }
+  .footer-grid{ grid-template-columns:1fr; }
+  .wc-grid{ grid-template-columns:1fr; }
+}
+@media (max-width:600px){
+  .kpi-row{ grid-template-columns:1fr 1fr; }
+  .header-inner{ padding:14px 16px; }
+  .page-wrap{ padding:0 16px 48px; }
+  .kpi-value{ font-size:24px; }
+  .section-nav-inner{ padding:0 16px; }
+  .section-nav-link{ font-size:12px; padding:9px 10px; }
+  .freshness{ font-size:11.5px; padding:5px 6px 5px 10px; white-space:normal; flex-wrap:wrap; row-gap:4px; }
+  .freshness .asof{ white-space:normal; }
+  .freshness-cadence{ display:none; }
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="app-header">
+  <div class="header-inner">
+    <div class="brand">
+      <svg class="ball-mark" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" focusable="false">
+        <circle class="ball-fill" cx="11" cy="11" r="9"/>
+        <path class="ball-seam" d="M3 8.5c4 2.4 12 2.4 16 0M3 13.5c4-2.4 12-2.4 16 0M11 2v18"/>
+      </svg>
+      <h1>Spikeball Finance</h1>
+    </div>
+    <div class="freshness" id="freshness-pill">
+      <span class="freshness-dot" id="freshness-dot" aria-hidden="true"></span>
+      <span class="asof"><span id="asof-label"></span><span class="freshness-cadence" id="asof-cadence"> - refreshes nightly ~3am MT</span></span>
+      <button type="button" class="freshness-refresh" id="refresh-btn" aria-label="Reload this page to check for a newer nightly publish"></button>
+    </div>
+    <div class="period-selector" role="group" aria-label="Reporting period">
+      <button type="button" class="period-btn" data-period="mtd" aria-pressed="true">MTD</button>
+      <button type="button" class="period-btn" data-period="ytd" aria-pressed="false">YTD</button>
+      <button type="button" class="period-btn" data-period="13m" aria-pressed="false">13 months</button>
+    </div>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false" aria-label="Switch to dark theme"></button>
+  </div>
+</header>
+
+<nav class="section-nav" id="section-nav" aria-label="Section navigation" hidden>
+  <div class="section-nav-inner" id="section-nav-inner"></div>
+</nav>
+
+<div class="page-wrap">
+<main id="main">
+
+  <div class="stale-banner" id="stale-banner" role="status" hidden></div>
+
+  <section class="kpi-block" id="overview-section" aria-label="Key performance indicators">
+    <div class="kpi-hero" id="kpi-hero"></div>
+    <div class="kpi-row" id="kpi-row"></div>
+    <div class="drill-panel" id="kpi-drill" hidden></div>
+  </section>
+
+  <section id="channel-section" aria-labelledby="channel-heading">
+    <h2 id="channel-heading">Sales by channel</h2>
+    <p class="section-sub">Trailing 13 months, revenue by rolled-up channel. Select a channel to drill into its trend, region split and top SKUs.</p>
+    <div class="channel-grid">
+      <div class="card chart-card">
+        <div class="card-head">
+          <div>
+            <h3>Revenue by channel</h3>
+            <p class="card-sub" id="channel-trend-sub"></p>
+          </div>
+          <div class="card-controls">
+            <button type="button" class="table-toggle" id="channel-trend-pytoggle" aria-pressed="false" hidden>vs prior year</button>
+            <button type="button" class="table-toggle" id="channel-trend-toggle" aria-pressed="false">Table</button>
+          </div>
+        </div>
+        <div class="legend" id="channel-trend-legend"></div>
+        <div class="chart-viz" id="channel-trend-viz"></div>
+        <div class="chart-table-wrap overflow-x" id="channel-trend-table" hidden></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h3 id="channel-table-heading">Channel detail</h3>
+            <p class="card-sub" id="channel-table-sub"></p>
+          </div>
+        </div>
+        <div class="overflow-x"><div id="channel-table"></div></div>
+      </div>
+    </div>
+    <div class="card overflow-x" id="orders-aov-card" hidden>
+      <div class="card-head">
+        <div>
+          <h3>Orders and AOV by channel</h3>
+          <p class="card-sub" id="orders-aov-sub"></p>
+        </div>
+      </div>
+      <div id="orders-aov-table"></div>
+    </div>
+    <div class="drill-panel" id="channel-drill" hidden></div>
+  </section>
+
+  <section id="moving-section" aria-labelledby="moving-heading">
+    <h2 id="moving-heading">What is moving</h2>
+    <p class="section-sub">Top 10 SKUs by revenue for the selected period, one card per direct channel. Select a SKU to see its channel split and on-hand by location.</p>
+    <div class="moving-grid" id="moving-grid"></div>
+    <div class="drill-panel" id="sku-drill" hidden></div>
+  </section>
+
+  <section id="inventory-section" aria-labelledby="inventory-heading">
+    <h2 id="inventory-heading">Inventory</h2>
+    <div class="inv-summary" id="inv-summary"></div>
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>On-hand by location, top-selling SKUs</h3>
+          <p class="card-sub">Top 10 SKUs by YTD revenue across all channels, at every location carrying stock of one of them.</p>
+        </div>
+      </div>
+      <div class="overflow-x"><div id="inventory-table"></div></div>
+    </div>
+  </section>
+
+  <section id="amazon-section" aria-labelledby="amazon-heading">
+    <h2 id="amazon-heading">Amazon marketplaces</h2>
+    <div id="amazon-body"></div>
+  </section>
+
+  <section id="returns-section" aria-labelledby="returns-heading">
+    <h2 id="returns-heading">Returns</h2>
+    <p class="section-sub">Credit memos and cash refunds by channel, MTD and YTD, with the return rate against revenue in the same window.</p>
+    <div class="card overflow-x"><div id="returns-table"></div></div>
+  </section>
+
+  <section id="ebitda-section" aria-labelledby="ebitda-heading">
+    <h2 id="ebitda-heading">EBITDA</h2>
+    <p class="section-sub">Reported EBITDA and adjusted EBITDA by month, actuals only.</p>
+    <div class="kpi-row kpi-row-3" id="ebitda-kpi-row" aria-label="EBITDA key figures"></div>
+    <div class="card overflow-x" style="margin-top:16px;">
+      <div class="card-head">
+        <div>
+          <h3>EBITDA by month</h3>
+          <p class="card-sub" id="ebitda-table-sub"></p>
+        </div>
+      </div>
+      <div id="ebitda-table"></div>
+    </div>
+  </section>
+
+  <section id="pnl-account-section" aria-labelledby="pnl-account-heading">
+    <h2 id="pnl-account-heading">Income statement, by account</h2>
+    <div class="card overflow-x">
+      <div class="card-head">
+        <div>
+          <h3>Income statement</h3>
+          <p class="card-sub" id="pnl-account-sub"></p>
+        </div>
+      </div>
+      <div id="pnl-account-table"></div>
+    </div>
+    <div class="drill-panel" id="pnl-account-drill" hidden></div>
+  </section>
+
+  <section id="channel-gross-net-section" aria-labelledby="channel-gross-net-heading">
+    <h2 id="channel-gross-net-heading">Gross to net revenue, by channel</h2>
+    <div class="card overflow-x">
+      <div class="card-head">
+        <div>
+          <h3>Gross to net by channel</h3>
+          <p class="card-sub" id="channel-gross-net-sub"></p>
+        </div>
+      </div>
+      <div id="channel-gross-net-table"></div>
+    </div>
+  </section>
+
+  <section id="balance-sheet-section" aria-labelledby="balance-sheet-heading">
+    <h2 id="balance-sheet-heading">Balance sheet</h2>
+    <p class="card-sub" id="balance-sheet-sub" style="margin-bottom:14px;"></p>
+    <div class="card overflow-x">
+      <div class="card-head"><div><h3>Assets, liabilities and equity</h3><p class="card-sub" id="balance-sheet-method-note"></p></div></div>
+      <div class="bs-check-line" id="balance-sheet-check"></div>
+      <div id="balance-sheet-table"></div>
+    </div>
+    <div class="wc-grid" style="margin-top:16px;">
+      <div class="card">
+        <div class="card-head"><div><h3>Total assets, trailing months</h3><p class="card-sub" id="balance-sheet-trend-sub"></p></div></div>
+        <div class="chart-viz" id="balance-sheet-trend-viz"></div>
+      </div>
+      <div class="card overflow-x">
+        <div class="card-head"><div><h3>Cash by account</h3><p class="card-sub" id="cash-positions-sub"></p></div></div>
+        <div id="cash-positions-table"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="cashflow-section" aria-labelledby="cashflow-heading">
+    <h2 id="cashflow-heading">Cash flow</h2>
+    <div class="card overflow-x">
+      <div class="card-head">
+        <div><h3>Statement of cash flows</h3><p class="card-sub" id="cashflow-sub"></p></div>
+      </div>
+      <div id="cashflow-table"></div>
+    </div>
+  </section>
+
+  <section id="working-capital-section" aria-labelledby="working-capital-heading">
+    <h2 id="working-capital-heading">Working capital</h2>
+    <div class="wc-grid">
+      <div class="card overflow-x">
+        <div class="card-head"><div><h3>AR aging</h3><p class="card-sub" id="ar-aging-sub"></p></div></div>
+        <div id="ar-aging-table"></div>
+      </div>
+      <div class="card overflow-x">
+        <div class="card-head"><div><h3>AP aging</h3><p class="card-sub" id="ap-aging-sub"></p></div></div>
+        <div id="ap-aging-table"></div>
+      </div>
+    </div>
+    <div class="card overflow-x" style="margin-top:16px;">
+      <div class="card-head"><div><h3>Open sales orders, by expected ship month</h3><p class="card-sub" id="open-so-sub"></p></div></div>
+      <div id="open-so-table"></div>
+    </div>
+    <div class="card" style="margin-top:16px;" id="open-po-card">
+      <div class="card-head"><div><h3>Open purchase orders</h3></div></div>
+      <div id="open-po-summary"></div>
+    </div>
+    <div class="card overflow-x" style="margin-top:16px;">
+      <div class="card-head"><div><h3>Item cost</h3><p class="card-sub" id="item-cost-sub"></p></div></div>
+      <div id="item-cost-table"></div>
+    </div>
+  </section>
+
+  <section id="demand-section" aria-labelledby="demand-heading">
+    <h2 id="demand-heading">Demand vs actuals</h2>
+    <p class="section-sub">Plan units vs. shipped units by SKU and month, from the CFO-entered demand plan against actual SKU-line sales. Cost coverage lists average cost and last purchase price for every SKU carrying a plan.</p>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head"><div><h3>Plan vs actual units, all SKUs</h3><p class="card-sub" id="demand-chart-sub"></p></div></div>
+      <div class="legend" id="demand-legend"></div>
+      <div class="chart-viz" id="demand-chart"></div>
+    </div>
+    <div class="card overflow-x">
+      <div class="card-head"><div><h3>Plan vs actual, by SKU</h3><p class="card-sub" id="demand-table-sub"></p></div></div>
+      <div id="demand-table"></div>
+    </div>
+    <div class="card overflow-x" style="margin-top:16px;">
+      <div class="card-head"><div><h3>Cost coverage</h3><p class="card-sub" id="demand-cost-sub"></p></div></div>
+      <div id="demand-cost-table"></div>
+    </div>
+  </section>
+
+  <footer class="app-footer" id="app-footer"></footer>
+
+</main>
+</div>
+
+<div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+
+<script type="application/json" id="dash-data">__DATA__</script>
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   0. DATA LOAD + CONFIG
+   ============================================================ */
+var RAW = JSON.parse(document.getElementById('dash-data').textContent);
+
+/* Applied synchronously, before init()/DOMContentLoaded, so a saved choice
+   takes effect before first paint instead of flashing the OS default. */
+(function applyStoredTheme(){
+  try {
+    var saved = window.localStorage ? localStorage.getItem('sb-fin-theme') : null;
+    if (saved === 'dark' || saved === 'light') document.documentElement.setAttribute('data-theme', saved);
+  } catch(e){ /* localStorage unavailable (private mode, blocked) -- fall back to OS default */ }
+})();
+
+var META = RAW.meta || {};
+var ROLLUPS = META.rollups || {groups:[], unassigned:{key:'unassigned', label:'Unassigned', color_light:'#D2D6D0', color_dark:'#3A403B'}, regions:{us_region_ids:[1], data_quality_region_ids:[]}};
+var FEATURES = META.features || {amazon_aov:false};
+var GROUPS = ROLLUPS.groups || [];
+var UNASSIGNED_META = ROLLUPS.unassigned || {key:'unassigned', label:'Unassigned', color_light:'#D2D6D0', color_dark:'#3A403B'};
+var ALL_ROLLUPS = GROUPS.concat([UNASSIGNED_META]);
+var ROLLUP_ORDER = ALL_ROLLUPS.map(function(g){ return g.key; });
+var ROLLUP_LABEL = {};
+var ROLLUP_META = {};
+ALL_ROLLUPS.forEach(function(g){ ROLLUP_LABEL[g.key] = g.label; ROLLUP_META[g.key] = g; });
+
+var CHANNEL_TO_ROLLUP = {};
+GROUPS.forEach(function(g){ (g.channel_ids||[]).forEach(function(id){ CHANNEL_TO_ROLLUP[id] = g.key; }); });
+function rollupOf(channelId){
+  if (channelId != null && CHANNEL_TO_ROLLUP.hasOwnProperty(channelId)) return CHANNEL_TO_ROLLUP[channelId];
+  return UNASSIGNED_META.key;
+}
+function rollupColorRef(key){ return 'var(--rollup-' + key + ')'; }
+function rollupColor(key){
+  return getComputedStyle(document.documentElement).getPropertyValue('--rollup-' + key).trim();
+}
+function injectRollupStyles(){
+  var lightRules = ALL_ROLLUPS.map(function(g){ return '--rollup-' + g.key + ':' + g.color_light + ';'; }).join('');
+  var darkRules = ALL_ROLLUPS.map(function(g){ return '--rollup-' + g.key + ':' + (g.color_dark || g.color_light) + ';'; }).join('');
+  var css = ':root{' + lightRules + '}\n' +
+    '@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){' + darkRules + '}}\n' +
+    ':root[data-theme="dark"]{' + darkRules + '}';
+  var styleEl = document.createElement('style');
+  styleEl.id = 'rollup-colors';
+  styleEl.textContent = css;
+  document.head.appendChild(styleEl);
+}
+
+var channelNameById = {};
+(RAW.channels||[]).forEach(function(c){ channelNameById[c.id] = c.name; });
+var regionNameById = {};
+(RAW.regions||[]).forEach(function(r){ regionNameById[r.id] = r.name; });
+
+var AMAZON_KEY = ROLLUPS.amazon_channel_id != null ? rollupOf(ROLLUPS.amazon_channel_id) : null;
+var DTC_KEY = ROLLUPS.dtc_channel_id != null ? rollupOf(ROLLUPS.dtc_channel_id) : null;
+var WHOLESALE_GROUP = GROUPS.filter(function(g){ return g.key === 'wholesale'; })[0];
+var WHOLESALE_KEY = WHOLESALE_GROUP ? WHOLESALE_GROUP.key : null;
+var MOVING_CARDS = [AMAZON_KEY, DTC_KEY, WHOLESALE_KEY].filter(function(k, idx, arr){ return k && arr.indexOf(k) === idx; });
+
+var US_REGION_IDS = (ROLLUPS.regions && ROLLUPS.regions.us_region_ids) || [1];
+var DQ_REGION_IDS = (ROLLUPS.regions && ROLLUPS.regions.data_quality_region_ids) || [];
+
+/* ============================================================
+   1. FORMATTERS
+   ============================================================ */
+var fCurrencyCompact = new Intl.NumberFormat('en-US', {style:'currency', currency:'USD', notation:'compact', maximumFractionDigits:1});
+var fCurrencyFull = new Intl.NumberFormat('en-US', {style:'currency', currency:'USD', maximumFractionDigits:0});
+var fCurrencyFullCents = new Intl.NumberFormat('en-US', {style:'currency', currency:'USD', maximumFractionDigits:2});
+var fNumber = new Intl.NumberFormat('en-US');
+var fNumber1 = new Intl.NumberFormat('en-US', {maximumFractionDigits:1});
+var nativeFmtCache = {};
+
+function money(v, compact){
+  if (v == null || !isFinite(v)) return 'n/a';
+  return compact ? fCurrencyCompact.format(v) : fCurrencyFull.format(v);
+}
+function moneyCents(v){
+  if (v == null || !isFinite(v)) return 'n/a';
+  return fCurrencyFullCents.format(v);
+}
+function moneyNative(v, currency){
+  if (v == null || !isFinite(v)) return 'n/a';
+  if (!currency) return fNumber1.format(v);
+  if (!nativeFmtCache[currency]){
+    try { nativeFmtCache[currency] = new Intl.NumberFormat('en-US', {style:'currency', currency: currency, maximumFractionDigits:0}); }
+    catch(e){ nativeFmtCache[currency] = fNumber1; }
+  }
+  return nativeFmtCache[currency].format(v) + ' ' + currency;
+}
+function units(v){
+  if (v == null || !isFinite(v)) return 'n/a';
+  return fNumber.format(Math.round(v));
+}
+function pct1(v){
+  if (v == null || !isFinite(v)) return 'n/a';
+  return v.toFixed(1) + '%';
+}
+function signedPct1(v){
+  if (v == null || !isFinite(v)) return 'n/a';
+  return (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+}
+function signedPP1(v){
+  if (v == null || !isFinite(v)) return 'n/a';
+  return (v >= 0 ? '+' : '') + v.toFixed(1) + 'pp';
+}
+/* Matches the money(v, compact) calling convention used by buildLineChart's fmt
+   param, but a percentage has no separate compact form -- always one decimal. */
+function pctFmt(v){ return pct1(v); }
+function yoyPct(cur, prior){
+  if (prior == null || cur == null || !isFinite(prior) || prior === 0) return null;
+  return (cur - prior) / Math.abs(prior) * 100;
+}
+function esc(s){ return String(s == null ? '' : s); }
+function daysBetweenInclusive(startStr, endStr){
+  if (!startStr || !endStr) return null;
+  var s = new Date(startStr + 'T00:00:00Z'), e = new Date(endStr + 'T00:00:00Z');
+  var diff = Math.round((e - s) / 86400000) + 1;
+  return isFinite(diff) ? diff : null;
+}
+function formatMtIso(iso){
+  if (!iso) return 'n/a';
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  try {
+    return d.toLocaleString('en-US', {timeZone:'America/Denver', month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit'}) + ' MT';
+  } catch(e){ return iso; }
+}
+
+/* ============================================================
+   2. SVG / ICON HELPERS
+   ============================================================ */
+var SVG_NS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs){
+  var el = document.createElementNS(SVG_NS, tag);
+  if (attrs) for (var k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+function el(tag, cls, attrs){
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (attrs) for (var k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function screenToSVG(svg, clientX, clientY){
+  var pt = svg.createSVGPoint();
+  pt.x = clientX; pt.y = clientY;
+  var ctm = svg.getScreenCTM();
+  if (!ctm) return {x:0,y:0};
+  var loc = pt.matrixTransform(ctm.inverse());
+  return {x: loc.x, y: loc.y};
+}
+var ICON = {
+  arrowUp: '<path d="M8 13V3M8 3L3.2 7.8M8 3l4.8 4.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  arrowDown: '<path d="M8 3v10M8 13l-4.8-4.8M8 13l4.8-4.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  dash: '<path d="M4 8h8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  warn: '<path d="M10 2.2 18.2 17H1.8L10 2.2Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M10 8v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="10" cy="14.6" r="0.9" fill="currentColor"/>',
+  check: '<circle cx="10" cy="10" r="8.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6.2 10.3l2.6 2.6 5-5.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+  info: '<circle cx="10" cy="10" r="8.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10 9.2v5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="6.3" r="0.9" fill="currentColor"/>',
+  close: '<path d="M5 5l10 10M15 5 5 15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  box: '<rect x="2.5" y="6.5" width="15" height="10.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 6.5 10 2l7.5 4.5M10 2v4.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>',
+  chevron: '<path d="M7 4l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  sun: '<circle cx="10" cy="10" r="3.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10 2.5v2M10 15.5v2M17.5 10h-2M4.5 10h-2M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4M15.3 15.3l-1.4-1.4M6.1 6.1 4.7 4.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+  moon: '<path d="M15.5 12.4A6.5 6.5 0 0 1 7.6 4.5a6.5 6.5 0 1 0 7.9 7.9Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>',
+  refresh: '<path d="M15.6 5.6A7 7 0 1 0 17 10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M15.1 2.6v3.5h-3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>'
+};
+function icon(name, size){
+  size = size || 16;
+  return '<svg class="icon-'+name+'" width="'+size+'" height="'+size+'" viewBox="0 0 20 20" aria-hidden="true" focusable="false">'+ICON[name]+'</svg>';
+}
+
+/* ============================================================
+   2b. THEME TOGGLE (data-theme, persisted in localStorage; the
+   CSS in <head> already handles both attribute values plus the
+   prefers-color-scheme default -- this just drives the attribute)
+   ============================================================ */
+function currentTheme(){
+  var attr = document.documentElement.getAttribute('data-theme');
+  if (attr === 'dark' || attr === 'light') return attr;
+  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+}
+function updateThemeToggleUI(mode){
+  var btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  btn.setAttribute('aria-pressed', mode === 'dark' ? 'true' : 'false');
+  btn.setAttribute('aria-label', mode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+  btn.innerHTML = icon(mode === 'dark' ? 'sun' : 'moon', 16);
+}
+function setTheme(mode){
+  document.documentElement.setAttribute('data-theme', mode);
+  try { if (window.localStorage) localStorage.setItem('sb-fin-theme', mode); } catch(e){ /* ignore */ }
+  updateThemeToggleUI(mode);
+}
+function initThemeToggle(){
+  var btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  updateThemeToggleUI(currentTheme());
+  btn.addEventListener('click', function(){ setTheme(currentTheme() === 'dark' ? 'light' : 'dark'); });
+}
+
+/* ============================================================
+   3. TOOLTIP
+   ============================================================ */
+var ttEl = document.getElementById('tooltip');
+function ttShow(x, y, buildFn){
+  ttEl.innerHTML = '';
+  buildFn(ttEl);
+  ttEl.hidden = false;
+  ttPosition(x, y);
+}
+function ttPosition(x, y){
+  var pad = 14;
+  var vw = window.innerWidth, vh = window.innerHeight;
+  var rect = ttEl.getBoundingClientRect();
+  var left = x + pad, top = y + pad;
+  if (left + rect.width > vw - 8) left = x - rect.width - pad;
+  if (top + rect.height > vh - 8) top = y - rect.height - pad;
+  if (left < 4) left = 4;
+  if (top < 4) top = 4;
+  ttEl.style.left = left + 'px';
+  ttEl.style.top = top + 'px';
+}
+function ttHide(){ ttEl.hidden = true; }
+function ttRow(container, colorHex, name, value, opts){
+  var row = el('div', 'tt-row');
+  if (colorHex){
+    var key = el('span', 'tt-key');
+    key.style.background = colorHex;
+    row.appendChild(key);
+  }
+  var nameEl = el('span', 'tt-name');
+  nameEl.textContent = name;
+  var valEl = el('span', 'tt-val');
+  valEl.textContent = value;
+  row.appendChild(nameEl);
+  row.appendChild(valEl);
+  if (opts && opts.total) row.className += ' tt-total';
+  container.appendChild(row);
+}
+
+/* ============================================================
+   4. DATA AGGREGATION
+   ============================================================ */
+function emptyPeriodBucket(){ return {revenue:0, cogs:0, gp:0, margin_pct:null}; }
+
+function aggregatePeriodByRollupManual(){
+  var acc = {};
+  ROLLUP_ORDER.forEach(function(k){
+    acc[k] = {
+      mtd:emptyPeriodBucket(), ytd:emptyPeriodBucket(), mtd_py:emptyPeriodBucket(), ytd_py:emptyPeriodBucket(),
+      show_margin: ROLLUP_META[k] ? (ROLLUP_META[k].show_margin !== false) : true,
+      margin_note: ROLLUP_META[k] ? (ROLLUP_META[k].margin_note || null) : null
+    };
+  });
+  (RAW.pnl_by_channel_period||[]).forEach(function(r){
+    if (r.channel_id === 'TOTAL') return;
+    var key = rollupOf(r.channel_id);
+    if (!acc[key]) return;
+    ['mtd','ytd'].forEach(function(p){
+      acc[key][p].revenue += r[p].revenue;
+      acc[key][p].cogs += r[p].cogs;
+      acc[key][p].gp += r[p].gp;
+    });
+    acc[key].mtd_py.revenue += r.mtd_prior_year.revenue;
+    acc[key].mtd_py.cogs += r.mtd_prior_year.cogs;
+    acc[key].mtd_py.gp += r.mtd_prior_year.gp;
+    acc[key].ytd_py.revenue += r.ytd_prior_year.revenue;
+    acc[key].ytd_py.cogs += r.ytd_prior_year.cogs;
+    acc[key].ytd_py.gp += r.ytd_prior_year.gp;
+  });
+  ROLLUP_ORDER.forEach(function(k){
+    ['mtd','ytd','mtd_py','ytd_py'].forEach(function(p){
+      var o = acc[k][p];
+      o.margin_pct = o.revenue !== 0 ? (o.gp / o.revenue * 100) : null;
+    });
+    acc[k].yoy_mtd_pct = yoyPct(acc[k].mtd.revenue, acc[k].mtd_py.revenue);
+    acc[k].yoy_ytd_pct = yoyPct(acc[k].ytd.revenue, acc[k].ytd_py.revenue);
+  });
+  return acc;
+}
+
+function buildPeriodByRollup(){
+  var acc = aggregatePeriodByRollupManual();
+  if (RAW.rollup_by_period){
+    RAW.rollup_by_period.forEach(function(r){
+      if (r.key === 'total' || !acc.hasOwnProperty(r.key)) return;
+      acc[r.key] = {
+        mtd: r.mtd, ytd: r.ytd, mtd_py: r.mtd_prior_year, ytd_py: r.ytd_prior_year,
+        yoy_mtd_pct: (r.yoy_mtd_pct != null ? r.yoy_mtd_pct : acc[r.key].yoy_mtd_pct),
+        yoy_ytd_pct: (r.yoy_ytd_pct != null ? r.yoy_ytd_pct : acc[r.key].yoy_ytd_pct),
+        show_margin: (r.show_margin != null ? r.show_margin : acc[r.key].show_margin),
+        margin_note: (r.margin_note != null ? r.margin_note : acc[r.key].margin_note)
+      };
+    });
+  }
+  return acc;
+}
+var PERIOD_BY_ROLLUP = buildPeriodByRollup();
+
+var TOTAL_ROW = null;
+(RAW.pnl_by_channel_period||[]).forEach(function(r){ if (r.channel_id === 'TOTAL') TOTAL_ROW = r; });
+var TOTAL_ROLLUP_ROW = null;
+if (RAW.rollup_by_period){
+  RAW.rollup_by_period.forEach(function(r){ if (r.key === 'total') TOTAL_ROLLUP_ROW = r; });
+}
+
+function buildMonthlyRollup(){
+  var byMonth = {};
+  (META.trailing_months||[]).forEach(function(ym){
+    var m = {}; ROLLUP_ORDER.forEach(function(k){ m[k] = 0; });
+    var py = {}; ROLLUP_ORDER.forEach(function(k){ py[k] = null; });
+    byMonth[ym] = {rev:m, py:py};
+  });
+  if (RAW.rollup_by_month){
+    RAW.rollup_by_month.forEach(function(r){
+      if (!byMonth[r.ym] || !byMonth[r.ym].rev.hasOwnProperty(r.key)) return;
+      byMonth[r.ym].rev[r.key] = r.revenue;
+      byMonth[r.ym].py[r.key] = (r.revenue_py != null ? r.revenue_py : null);
+    });
+  } else {
+    (RAW.pnl_by_channel_month||[]).forEach(function(r){
+      var key = rollupOf(r.channel_id);
+      if (!byMonth[r.ym] || !byMonth[r.ym].rev.hasOwnProperty(key)) return;
+      byMonth[r.ym].rev[key] += r.revenue;
+      if (r.revenue_py != null){
+        byMonth[r.ym].py[key] = (byMonth[r.ym].py[key] || 0) + r.revenue_py;
+      }
+    });
+  }
+  return byMonth;
+}
+var MONTHLY_ROLLUP = buildMonthlyRollup();
+
+function monthlyTotals(){
+  return (META.trailing_months||[]).map(function(ym){
+    var m = MONTHLY_ROLLUP[ym].rev;
+    return ROLLUP_ORDER.reduce(function(s,k){ return s + m[k]; }, 0);
+  });
+}
+function monthlyForRollup(key){
+  return (META.trailing_months||[]).map(function(ym){ return MONTHLY_ROLLUP[ym].rev[key]; });
+}
+function monthlyPyTotals(){
+  var anyData = false;
+  var vals = (META.trailing_months||[]).map(function(ym){
+    var py = MONTHLY_ROLLUP[ym].py;
+    var sum = 0, hasAny = false;
+    ROLLUP_ORDER.forEach(function(k){ if (py[k] != null){ sum += py[k]; hasAny = true; } });
+    if (hasAny) anyData = true;
+    return hasAny ? sum : null;
+  });
+  return anyData ? vals : null;
+}
+/* Company-total gross margin per month, trailing months -- summed straight from
+   pnl_by_channel_month (revenue/cogs) rather than MONTHLY_ROLLUP, which only
+   carries revenue. Used by the KPI margin drills (KPI 2). */
+function monthlyMarginTrend(){
+  var byYm = {};
+  (RAW.pnl_by_channel_month||[]).forEach(function(r){
+    var e = byYm[r.ym] || (byYm[r.ym] = {revenue:0, cogs:0});
+    e.revenue += (r.revenue||0);
+    e.cogs += (r.cogs||0);
+  });
+  return (META.trailing_months||[]).map(function(ym){
+    var e = byYm[ym];
+    return (e && e.revenue !== 0) ? (e.revenue - e.cogs) / e.revenue * 100 : 0;
+  });
+}
+
+function skuAggByRollup(period){
+  var rows = RAW.sku_sales[period] || [];
+  var byRollup = {};
+  ROLLUP_ORDER.forEach(function(k){ byRollup[k] = {}; });
+  rows.forEach(function(r){
+    var key = rollupOf(r.channel_id);
+    var m = byRollup[key];
+    if (!m) return;
+    if (!m[r.sku]) m[r.sku] = {sku:r.sku, display_name:r.display_name, itemtype:r.itemtype, units:0, revenue:0};
+    m[r.sku].units += r.units;
+    m[r.sku].revenue += r.revenue;
+  });
+  return byRollup;
+}
+var SKU_AGG_MTD = skuAggByRollup('mtd');
+var SKU_AGG_YTD = skuAggByRollup('ytd');
+function skuAggFor(period, rollupKey){
+  var src = (period === 'ytd' ? SKU_AGG_YTD : SKU_AGG_MTD)[rollupKey] || {};
+  var list = Object.keys(src).map(function(k){ return src[k]; });
+  list.sort(function(a,b){ return b.revenue - a.revenue; });
+  return list;
+}
+function top5ConcentrationFor(rollupKey, period){
+  if (rollupKey === AMAZON_KEY || rollupKey === DTC_KEY){
+    var chName = ROLLUP_LABEL[rollupKey];
+    var found = null;
+    (RAW.sku_sales.top5_concentration||[]).forEach(function(r){
+      if (r.channel === chName && r.period === period) found = r;
+    });
+    if (found) return found.top5_share_pct;
+  }
+  var list = skuAggFor(period, rollupKey);
+  var total = list.reduce(function(s,e){ return s+e.revenue; }, 0);
+  var top5 = list.slice(0,5).reduce(function(s,e){ return s+e.revenue; }, 0);
+  return total !== 0 ? (top5/total*100) : null;
+}
+
+/* All-channel-combined SKU aggregation, for inventory top-10 YTD */
+function skuAggAllChannels(period){
+  var rows = RAW.sku_sales[period] || [];
+  var m = {};
+  rows.forEach(function(r){
+    if (!m[r.sku]) m[r.sku] = {sku:r.sku, display_name:r.display_name, itemtype:r.itemtype, units:0, revenue:0};
+    m[r.sku].units += r.units;
+    m[r.sku].revenue += r.revenue;
+  });
+  var list = Object.keys(m).map(function(k){ return m[k]; });
+  list.sort(function(a,b){ return b.revenue - a.revenue; });
+  return list;
+}
+var TOP10_YTD_ALL = skuAggAllChannels('ytd').slice(0,10);
+
+/* Inventory index */
+var onhandBySku = {};
+(RAW.inventory.onhand_by_item_location||[]).forEach(function(r){
+  if (!onhandBySku[r.sku]) onhandBySku[r.sku] = [];
+  onhandBySku[r.sku].push(r);
+});
+var kitSkuSet = {};
+(RAW.inventory.kit_skus_without_onhand||[]).forEach(function(s){ kitSkuSet[s] = true; });
+var daysOnHandBySku = {};
+(RAW.inventory.days_on_hand||[]).forEach(function(r){ daysOnHandBySku[r.sku] = r; });
+var HAS_DAYS_ON_HAND = (RAW.inventory.days_on_hand||[]).length > 0;
+
+function returnsAggByRollup(){
+  var acc = {};
+  ROLLUP_ORDER.forEach(function(k){ acc[k] = {mtd_credits:0, mtd_credit_count:0, ytd_credits:0, ytd_credit_count:0}; });
+  (RAW.returns_by_channel||[]).forEach(function(r){
+    var key = rollupOf(r.channel_id);
+    if (!acc[key]) return;
+    acc[key].mtd_credits += r.mtd_credits;
+    acc[key].mtd_credit_count += r.mtd_credit_count;
+    acc[key].ytd_credits += r.ytd_credits;
+    acc[key].ytd_credit_count += r.ytd_credit_count;
+  });
+  ROLLUP_ORDER.forEach(function(k){
+    var rev = PERIOD_BY_ROLLUP[k];
+    acc[k].mtd_return_rate_pct = (rev && rev.mtd.revenue > 0) ? (-acc[k].mtd_credits / rev.mtd.revenue * 100) : null;
+    acc[k].ytd_return_rate_pct = (rev && rev.ytd.revenue > 0) ? (-acc[k].ytd_credits / rev.ytd.revenue * 100) : null;
+  });
+  return acc;
+}
+var RETURNS_BY_ROLLUP = returnsAggByRollup();
+
+function ordersAggByRollup(){
+  var acc = {};
+  ROLLUP_ORDER.forEach(function(k){ acc[k] = {mtd_orders:0, ytd_orders:0, hasNull:false, notes:[]}; });
+  (RAW.orders_by_channel||[]).forEach(function(r){
+    var key = rollupOf(r.channel_id);
+    if (!acc[key]) return;
+    if (r.mtd_orders == null || r.ytd_orders == null){
+      acc[key].hasNull = true;
+      if (r.note && acc[key].notes.indexOf(r.note) === -1) acc[key].notes.push(r.note);
+    } else {
+      acc[key].mtd_orders += r.mtd_orders;
+      acc[key].ytd_orders += r.ytd_orders;
+    }
+  });
+  return acc;
+}
+var ORDERS_BY_ROLLUP = RAW.orders_by_channel ? ordersAggByRollup() : null;
+
+/* SKU revenue-by-rollup + display name lookup, for the SKU drill */
+function skuLookupAcrossPeriod(sku, period){
+  var out = {};
+  ROLLUP_ORDER.forEach(function(k){ out[k] = 0; });
+  var rows = RAW.sku_sales[period] || [];
+  var meta = null;
+  rows.forEach(function(r){
+    if (r.sku !== sku) return;
+    var key = rollupOf(r.channel_id);
+    if (out.hasOwnProperty(key)) out[key] += r.revenue;
+    if (!meta) meta = {sku:r.sku, display_name:r.display_name, itemtype:r.itemtype};
+  });
+  return {byRollup:out, meta:meta};
+}
+
+/* ============================================================
+   5. AXIS / SCALE HELPERS
+   ============================================================ */
+function niceAxis(minVal, maxVal, count){
+  count = count || 4;
+  var lo = Math.min(0, minVal), hi = Math.max(0, maxVal);
+  if (hi === lo) hi = lo + 1;
+  var range = hi - lo;
+  var rough = range / count;
+  var mag = Math.pow(10, Math.floor(Math.log(rough) / Math.LN10));
+  var norm = rough / mag;
+  var step = norm < 1.5 ? 1*mag : norm < 3 ? 2*mag : norm < 7 ? 5*mag : 10*mag;
+  var niceLo = Math.floor(lo/step) * step;
+  var niceHi = Math.ceil(hi/step) * step;
+  var ticks = [];
+  for (var v = niceLo; v <= niceHi + step*0.5; v += step) ticks.push(Math.round(v*100)/100);
+  return {ticks:ticks, lo:niceLo, hi:niceHi};
+}
+function monthLabel(ym, idx){
+  var parts = ym.split('-');
+  var mIdx = parseInt(parts[1],10) - 1;
+  var names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var label = names[mIdx];
+  if (mIdx === 0 || idx === 0) label += " '" + parts[0].slice(2);
+  return label;
+}
+var MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+/* Human date formatting for copy, straight off the YYYY-MM-DD calendar-date string --
+   never through a Date object, so there is no local-timezone / America-Denver shift risk. */
+function formatDateShort(dateStr){
+  if (!dateStr) return '';
+  var parts = dateStr.split('-');
+  var m = parseInt(parts[1],10) - 1, d = parseInt(parts[2],10);
+  return MONTH_ABBR[m] + ' ' + d;
+}
+function formatDateLong(dateStr){
+  if (!dateStr) return '';
+  var parts = dateStr.split('-');
+  var m = parseInt(parts[1],10) - 1, d = parseInt(parts[2],10);
+  return MONTH_ABBR[m] + ' ' + d + ', ' + parts[0];
+}
+
+/* ============================================================
+   6. CHART: KPI SPARKLINE
+   ============================================================ */
+function buildSparkline(values, w, h){
+  var svg = svgEl('svg', {viewBox:'0 0 '+w+' '+h, 'aria-hidden':'true', focusable:'false'});
+  var n = values.length;
+  var min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+  if (min === max){ min -= 1; max += 1; }
+  var pad = 3;
+  function x(i){ return pad + (i/(n-1)) * (w - pad*2); }
+  function y(v){ return h - pad - ((v-min)/(max-min)) * (h - pad*2); }
+  var d = values.map(function(v,i){ return (i===0?'M':'L') + x(i).toFixed(1) + ',' + y(v).toFixed(1); }).join(' ');
+  var path = svgEl('path', {d:d, fill:'none', stroke:'var(--muted)', 'stroke-width':'1.6', 'stroke-linecap':'round', 'stroke-linejoin':'round'});
+  svg.appendChild(path);
+  var dot = svgEl('circle', {cx:x(n-1).toFixed(1), cy:y(values[n-1]).toFixed(1), r:'3', fill:'var(--accent)'});
+  svg.appendChild(dot);
+  return svg;
+}
+
+/* ============================================================
+   7. CHART: STACKED COLUMN (channel trend)
+   ============================================================ */
+var TREND_M = {top:16, right:118, bottom:26, left:58};
+var TREND_PLOT_W = 610, TREND_PLOT_H = 260;
+var TREND_VIEW_W = TREND_M.left + TREND_PLOT_W + TREND_M.right;
+var TREND_VIEW_H = TREND_M.top + TREND_PLOT_H + TREND_M.bottom;
+
+function buildChannelTrendChart(onSelectRollup, pyValues){
+  var months = META.trailing_months || [];
+  var n = months.length;
+  var perMonthRollup = months.map(function(ym){ return MONTHLY_ROLLUP[ym].rev; });
+
+  var minStack = 0, maxStack = 0;
+  perMonthRollup.forEach(function(m){
+    var pos = 0, neg = 0;
+    ROLLUP_ORDER.forEach(function(k){ if (m[k] >= 0) pos += m[k]; else neg += m[k]; });
+    if (pos > maxStack) maxStack = pos;
+    if (neg < minStack) minStack = neg;
+  });
+  if (pyValues){
+    pyValues.forEach(function(v){ if (v != null){ if (v > maxStack) maxStack = v; if (v < minStack) minStack = v; } });
+  }
+  var axis = niceAxis(minStack, maxStack, 5);
+  var yScale = function(v){ return TREND_M.top + TREND_PLOT_H - ((v - axis.lo) / (axis.hi - axis.lo)) * TREND_PLOT_H; };
+  var zeroY = yScale(0);
+  var band = TREND_PLOT_W / n;
+  var barW = Math.min(24, band * 0.58);
+  var GAP_HALF = 1;
+  var RADIUS = 4;
+
+  var svg = svgEl('svg', {viewBox:'0 0 '+TREND_VIEW_W+' '+TREND_VIEW_H, role:'img', 'aria-label':'Revenue by channel, trailing thirteen months, stacked column chart'});
+
+  /* gridlines + y ticks */
+  axis.ticks.forEach(function(t){
+    var yy = yScale(t);
+    svg.appendChild(svgEl('line', {class: t===0 ? 'baseline-line' : 'grid-line', x1:TREND_M.left, x2:TREND_M.left+TREND_PLOT_W, y1:yy, y2:yy}));
+    var lbl = svgEl('text', {class:'tick-label', x:TREND_M.left-8, y:yy+3, 'text-anchor':'end'});
+    lbl.textContent = fCurrencyCompact.format(t);
+    svg.appendChild(lbl);
+  });
+
+  var barsLayer = svgEl('g', {});
+  svg.appendChild(barsLayer);
+
+  function roundedTopPath(x0,y0,w,h,r){
+    r = Math.min(r, w/2, Math.max(h,0));
+    if (h <= 0) return null;
+    if (h <= r*1.2){ /* too short to round nicely, use plain rect path */
+      return 'M'+x0+','+(y0+h)+' L'+x0+','+y0+' L'+(x0+w)+','+y0+' L'+(x0+w)+','+(y0+h)+' Z';
+    }
+    return 'M'+x0+','+(y0+h)+' L'+x0+','+(y0+r)+' Q'+x0+','+y0+' '+(x0+r)+','+y0+
+      ' L'+(x0+w-r)+','+y0+' Q'+(x0+w)+','+y0+' '+(x0+w)+','+(y0+r)+
+      ' L'+(x0+w)+','+(y0+h)+' Z';
+  }
+  function roundedBottomPath(x0,y0,w,h,r){
+    r = Math.min(r, w/2, Math.max(h,0));
+    if (h <= 0) return null;
+    if (h <= r*1.2){
+      return 'M'+x0+','+y0+' L'+(x0+w)+','+y0+' L'+(x0+w)+','+(y0+h)+' L'+x0+','+(y0+h)+' Z';
+    }
+    return 'M'+x0+','+y0+' L'+(x0+w)+','+y0+' L'+(x0+w)+','+(y0+h-r)+' Q'+(x0+w)+','+(y0+h)+' '+(x0+w-r)+','+(y0+h)+
+      ' L'+(x0+r)+','+(y0+h)+' Q'+x0+','+(y0+h)+' '+x0+','+(y0+h-r)+' Z';
+  }
+
+  var lastCol = n - 1;
+  perMonthRollup.forEach(function(m, i){
+    var x0 = TREND_M.left + i*band + (band-barW)/2;
+    var posAcc = 0, negAcc = 0;
+    var topRollupKey = null, topSegTop = Infinity;
+    var segGeom = [];
+    ROLLUP_ORDER.forEach(function(k){
+      var v = m[k];
+      var yTop, h, isPos;
+      if (v >= 0){
+        yTop = yScale(posAcc + v); h = yScale(posAcc) - yTop; isPos = true;
+        posAcc += v;
+      } else {
+        yTop = yScale(negAcc); h = yScale(negAcc + v) - yTop; isPos = false;
+        negAcc += v;
+      }
+      segGeom.push({key:k, v:v, yTop:yTop, h:h, isPos:isPos});
+      if (isPos && v > 0 && yTop < topSegTop){ topSegTop = yTop; topRollupKey = k; }
+    });
+    segGeom.forEach(function(seg){
+      if (seg.h <= 0) return;
+      var drawTop = seg.yTop + GAP_HALF;
+      var drawH = Math.max(0, seg.h - GAP_HALF*2);
+      if (drawH <= 0) return;
+      var isTopmost = seg.isPos && seg.key === topRollupKey;
+      var isBottommost = !seg.isPos; /* negative segments: round the far (bottom) end */
+      var pathD;
+      if (isTopmost) pathD = roundedTopPath(x0, drawTop, barW, drawH, RADIUS);
+      else if (isBottommost) pathD = roundedBottomPath(x0, drawTop, barW, drawH, RADIUS);
+      else pathD = 'M'+x0+','+(drawTop+drawH)+' L'+x0+','+drawTop+' L'+(x0+barW)+','+drawTop+' L'+(x0+barW)+','+(drawTop+drawH)+' Z';
+      if (!pathD) return;
+      var path = svgEl('path', {
+        d:pathD, fill:rollupColorRef(seg.key), class:'seg-hit',
+        tabindex:'0', role:'button',
+        'aria-label': ROLLUP_LABEL[seg.key] + ', ' + monthLabel(months[i], i) + ', ' + money(seg.v)
+      });
+      path.addEventListener('pointerenter', function(ev){ showTrendTooltip(ev, i); });
+      path.addEventListener('pointermove', function(ev){ ttPosition(ev.clientX, ev.clientY); });
+      path.addEventListener('pointerleave', ttHide);
+      path.addEventListener('focus', function(ev){ var r=path.getBoundingClientRect(); showTrendTooltip({clientX:r.left+r.width/2, clientY:r.top}, i); });
+      path.addEventListener('blur', ttHide);
+      path.addEventListener('click', function(){ onSelectRollup(seg.key); });
+      path.addEventListener('keydown', function(ev){ if (ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); onSelectRollup(seg.key); } });
+      barsLayer.appendChild(path);
+    });
+
+    /* x tick */
+    var xt = svgEl('text', {class:'tick-label', x:x0+barW/2, y:TREND_M.top+TREND_PLOT_H+16, 'text-anchor':'middle'});
+    xt.textContent = monthLabel(months[i], i);
+    svg.appendChild(xt);
+
+    /* direct labels on latest column */
+    if (i === lastCol){
+      segGeom.forEach(function(seg){
+        if (seg.h < 15) return;
+        var ty = seg.yTop + seg.h/2 + 3.5;
+        var lab = svgEl('text', {class:'direct-label', x:x0+barW+8, y:ty});
+        lab.textContent = ROLLUP_LABEL[seg.key] + ' ' + money(seg.v, true);
+        svg.appendChild(lab);
+      });
+    }
+  });
+
+  /* prior-year overlay line */
+  if (pyValues){
+    var pyX = function(i){ return TREND_M.left + i*band + band/2; };
+    var segments = [];
+    var cur = null;
+    pyValues.forEach(function(v, i){
+      if (v == null){ cur = null; return; }
+      var pt = pyX(i).toFixed(1) + ',' + yScale(v).toFixed(1);
+      if (!cur){ cur = [pt]; segments.push(cur); } else { cur.push(pt); }
+    });
+    segments.forEach(function(pts){
+      if (pts.length < 2) return;
+      var d = 'M' + pts.join(' L');
+      svg.appendChild(svgEl('path', {d:d, fill:'none', stroke:'var(--ink-2)', 'stroke-width':'2', 'stroke-dasharray':'5,3', 'stroke-linecap':'round', 'aria-hidden':'true'}));
+    });
+    pyValues.forEach(function(v, i){
+      if (v == null) return;
+      svg.appendChild(svgEl('circle', {cx:pyX(i), cy:yScale(v), r:'2.4', fill:'var(--ink-2)', 'aria-hidden':'true'}));
+    });
+  }
+
+  /* crosshair */
+  var crosshair = svgEl('line', {class:'crosshair-line', x1:0, x2:0, y1:TREND_M.top, y2:TREND_M.top+TREND_PLOT_H});
+  svg.appendChild(crosshair);
+  var hitLayer = svgEl('rect', {x:TREND_M.left, y:TREND_M.top, width:TREND_PLOT_W, height:TREND_PLOT_H, fill:'transparent'});
+  hitLayer.addEventListener('pointermove', function(ev){
+    var p = screenToSVG(svg, ev.clientX, ev.clientY);
+    var i = Math.max(0, Math.min(n-1, Math.round((p.x - TREND_M.left - band/2) / band)));
+    var cx = TREND_M.left + i*band + band/2;
+    crosshair.setAttribute('x1', cx); crosshair.setAttribute('x2', cx);
+    crosshair.style.opacity = '1';
+    showTrendTooltip(ev, i);
+  });
+  hitLayer.addEventListener('pointerleave', function(){ crosshair.style.opacity='0'; ttHide(); });
+  svg.appendChild(hitLayer);
+
+  function showTrendTooltip(ev, i){
+    ttShow(ev.clientX, ev.clientY, function(box){
+      var head = el('div','tt-title'); head.textContent = monthLabel(months[i], i).replace("'", "20"); box.appendChild(head);
+      var m = perMonthRollup[i];
+      var total = 0;
+      ROLLUP_ORDER.forEach(function(k){
+        total += m[k];
+        ttRow(box, rollupColor(k), ROLLUP_LABEL[k], money(m[k]));
+      });
+      ttRow(box, null, 'Total', money(total), {total:true});
+      if (pyValues && pyValues[i] != null){
+        ttRow(box, 'var(--ink-2)', 'Prior year total', money(pyValues[i]));
+      }
+    });
+  }
+
+  return svg;
+}
+
+function buildChannelTrendTable(){
+  var months = META.trailing_months || [];
+  var wrap = el('table','data-table');
+  var thead = el('thead'); var htr = el('tr');
+  htr.appendChild(el('th')).textContent = 'Month';
+  ROLLUP_ORDER.forEach(function(k){ var th=el('th'); th.textContent=ROLLUP_LABEL[k]; htr.appendChild(th); });
+  var thTotal = el('th'); thTotal.textContent='Total'; htr.appendChild(thTotal);
+  thead.appendChild(htr); wrap.appendChild(thead);
+  var tbody = el('tbody');
+  months.forEach(function(ym, i){
+    var tr = el('tr');
+    var td0 = el('td'); td0.textContent = monthLabel(ym, i).replace("'", "20"); tr.appendChild(td0);
+    var m = MONTHLY_ROLLUP[ym].rev; var total = 0;
+    ROLLUP_ORDER.forEach(function(k){ total += m[k]; var td=el('td'); td.textContent = moneyCents(m[k]); tr.appendChild(td); });
+    var tdT = el('td'); tdT.textContent = moneyCents(total); tr.appendChild(tdT);
+    tbody.appendChild(tr);
+  });
+  wrap.appendChild(tbody);
+  return wrap;
+}
+
+/* ============================================================
+   8. CHART: SINGLE-SERIES LINE (channel drill trend)
+   ============================================================ */
+function buildLineChart(values, months, colorVarRef, ariaLabel, fmt, tooltipLabel){
+  fmt = fmt || money;
+  tooltipLabel = tooltipLabel || 'Revenue';
+  var M = {top:14, right:60, bottom:24, left:52};
+  var PW = 460, PH = 190;
+  var VW = M.left+PW+M.right, VH = M.top+PH+M.bottom;
+  var min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+  var axis = niceAxis(min, max, 4);
+  var yScale = function(v){ return M.top + PH - ((v-axis.lo)/(axis.hi-axis.lo))*PH; };
+  var n = values.length;
+  var xScale = function(i){ return M.left + (i/(n-1)) * PW; };
+
+  var svg = svgEl('svg', {viewBox:'0 0 '+VW+' '+VH, role:'img', 'aria-label':ariaLabel});
+  axis.ticks.forEach(function(t){
+    var yy = yScale(t);
+    svg.appendChild(svgEl('line', {class: t===0?'baseline-line':'grid-line', x1:M.left, x2:M.left+PW, y1:yy, y2:yy}));
+    var lbl = svgEl('text', {class:'tick-label', x:M.left-8, y:yy+3, 'text-anchor':'end'});
+    lbl.textContent = fmt(t, true);
+    svg.appendChild(lbl);
+  });
+  months.forEach(function(ym,i){
+    if (i % 2 !== 0 && n > 8) return;
+    var xt = svgEl('text', {class:'tick-label', x:xScale(i), y:M.top+PH+16, 'text-anchor':'middle'});
+    xt.textContent = monthLabel(ym, i);
+    svg.appendChild(xt);
+  });
+  var d = values.map(function(v,i){ return (i===0?'M':'L')+xScale(i).toFixed(1)+','+yScale(v).toFixed(1); }).join(' ');
+  svg.appendChild(svgEl('path', {d:d, fill:'none', stroke:colorVarRef, 'stroke-width':'2', 'stroke-linecap':'round', 'stroke-linejoin':'round'}));
+  /* end marker with surface ring */
+  var lastX = xScale(n-1), lastY = yScale(values[n-1]);
+  svg.appendChild(svgEl('circle', {cx:lastX, cy:lastY, r:'6', fill:'var(--surface)'}));
+  svg.appendChild(svgEl('circle', {cx:lastX, cy:lastY, r:'4', fill:colorVarRef}));
+  var endLbl = svgEl('text', {class:'direct-label', x:lastX+9, y:lastY+4});
+  endLbl.textContent = fmt(values[n-1], true);
+  svg.appendChild(endLbl);
+
+  /* crosshair + tooltip */
+  var crosshair = svgEl('line', {class:'crosshair-line', x1:0, x2:0, y1:M.top, y2:M.top+PH});
+  svg.appendChild(crosshair);
+  var hit = svgEl('rect', {x:M.left, y:M.top, width:PW, height:PH, fill:'transparent'});
+  hit.addEventListener('pointermove', function(ev){
+    var p = screenToSVG(svg, ev.clientX, ev.clientY);
+    var i = Math.max(0, Math.min(n-1, Math.round((p.x-M.left)/PW*(n-1))));
+    var cx = xScale(i);
+    crosshair.setAttribute('x1', cx); crosshair.setAttribute('x2', cx);
+    crosshair.style.opacity='1';
+    ttShow(ev.clientX, ev.clientY, function(box){
+      var head = el('div','tt-title'); head.textContent = monthLabel(months[i], i).replace("'", "20"); box.appendChild(head);
+      ttRow(box, colorVarRef.indexOf('var(') === 0 ? getComputedStyle(document.documentElement).getPropertyValue(colorVarRef.slice(4,-1)).trim() : colorVarRef, tooltipLabel, fmt(values[i]));
+    });
+  });
+  hit.addEventListener('pointerleave', function(){ crosshair.style.opacity='0'; ttHide(); });
+  svg.appendChild(hit);
+  return svg;
+}
+
+/* ============================================================
+   8a. CHART: SINGLE-SERIES LINE, YEAR AXIS (life-to-date drill)
+   Same shape as buildLineChart but the x-axis is a list of year
+   strings ("2018") rather than "YYYY-MM" months, which monthLabel()
+   cannot parse -- kept as its own small function rather than adding
+   another axis-formatter param to buildLineChart.
+   ============================================================ */
+function buildYearLineChart(values, years, colorVarRef, ariaLabel){
+  var M = {top:14, right:60, bottom:24, left:52};
+  var PW = 460, PH = 190;
+  var VW = M.left+PW+M.right, VH = M.top+PH+M.bottom;
+  var min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+  var axis = niceAxis(min, max, 4);
+  var yScale = function(v){ return M.top + PH - ((v-axis.lo)/(axis.hi-axis.lo))*PH; };
+  var n = values.length;
+  var xScale = function(i){ return M.left + (i/(n-1)) * PW; };
+
+  var svg = svgEl('svg', {viewBox:'0 0 '+VW+' '+VH, role:'img', 'aria-label':ariaLabel});
+  axis.ticks.forEach(function(t){
+    var yy = yScale(t);
+    svg.appendChild(svgEl('line', {class: t===0?'baseline-line':'grid-line', x1:M.left, x2:M.left+PW, y1:yy, y2:yy}));
+    var lbl = svgEl('text', {class:'tick-label', x:M.left-8, y:yy+3, 'text-anchor':'end'});
+    lbl.textContent = money(t, true);
+    svg.appendChild(lbl);
+  });
+  years.forEach(function(y,i){
+    var xt = svgEl('text', {class:'tick-label', x:xScale(i), y:M.top+PH+16, 'text-anchor':'middle'});
+    xt.textContent = y;
+    svg.appendChild(xt);
+  });
+  var d = values.map(function(v,i){ return (i===0?'M':'L')+xScale(i).toFixed(1)+','+yScale(v).toFixed(1); }).join(' ');
+  svg.appendChild(svgEl('path', {d:d, fill:'none', stroke:colorVarRef, 'stroke-width':'2', 'stroke-linecap':'round', 'stroke-linejoin':'round'}));
+  var lastX = xScale(n-1), lastY = yScale(values[n-1]);
+  svg.appendChild(svgEl('circle', {cx:lastX, cy:lastY, r:'6', fill:'var(--surface)'}));
+  svg.appendChild(svgEl('circle', {cx:lastX, cy:lastY, r:'4', fill:colorVarRef}));
+  var endLbl = svgEl('text', {class:'direct-label', x:lastX+9, y:lastY+4});
+  endLbl.textContent = money(values[n-1], true);
+  svg.appendChild(endLbl);
+
+  var crosshair = svgEl('line', {class:'crosshair-line', x1:0, x2:0, y1:M.top, y2:M.top+PH});
+  svg.appendChild(crosshair);
+  var hit = svgEl('rect', {x:M.left, y:M.top, width:PW, height:PH, fill:'transparent'});
+  hit.addEventListener('pointermove', function(ev){
+    var p = screenToSVG(svg, ev.clientX, ev.clientY);
+    var i = Math.max(0, Math.min(n-1, Math.round((p.x-M.left)/PW*(n-1))));
+    var cx = xScale(i);
+    crosshair.setAttribute('x1', cx); crosshair.setAttribute('x2', cx);
+    crosshair.style.opacity='1';
+    ttShow(ev.clientX, ev.clientY, function(box){
+      var head = el('div','tt-title'); head.textContent = years[i]; box.appendChild(head);
+      ttRow(box, colorVarRef.indexOf('var(') === 0 ? getComputedStyle(document.documentElement).getPropertyValue(colorVarRef.slice(4,-1)).trim() : colorVarRef, 'Sales', money(values[i]));
+    });
+  });
+  hit.addEventListener('pointerleave', function(){ crosshair.style.opacity='0'; ttHide(); });
+  svg.appendChild(hit);
+  return svg;
+}
+
+/* ============================================================
+   8b. CHART: TWO-SERIES LINE (demand plan vs actual)
+   `series` is [{label, values, colorRef, dashed}, ...], same length
+   as `months`. `fmt` formats both axis ticks and tooltip values.
+   ============================================================ */
+function buildDualLineChart(months, series, ariaLabel, fmt){
+  fmt = fmt || money;
+  var M = {top:14, right:16, bottom:24, left:52};
+  var PW = 460, PH = 170;
+  var VW = M.left+PW+M.right, VH = M.top+PH+M.bottom;
+  var n = months.length;
+  var allVals = [];
+  series.forEach(function(s){ s.values.forEach(function(v){ if (v != null && isFinite(v)) allVals.push(v); }); });
+  if (!allVals.length) allVals = [0];
+  var min = Math.min.apply(null, allVals), max = Math.max.apply(null, allVals);
+  var axis = niceAxis(min, max, 4);
+  var yScale = function(v){ return M.top + PH - ((v-axis.lo)/(axis.hi-axis.lo))*PH; };
+  var xScale = function(i){ return M.left + (i/(n-1)) * PW; };
+
+  var svg = svgEl('svg', {viewBox:'0 0 '+VW+' '+VH, role:'img', 'aria-label':ariaLabel});
+  axis.ticks.forEach(function(t){
+    var yy = yScale(t);
+    svg.appendChild(svgEl('line', {class: t===0?'baseline-line':'grid-line', x1:M.left, x2:M.left+PW, y1:yy, y2:yy}));
+    var lbl = svgEl('text', {class:'tick-label', x:M.left-8, y:yy+3, 'text-anchor':'end'});
+    lbl.textContent = fmt(t);
+    svg.appendChild(lbl);
+  });
+  months.forEach(function(ym,i){
+    if (n > 8 && i % 2 !== 0 && i !== n-1) return;
+    var xt = svgEl('text', {class:'tick-label', x:xScale(i), y:M.top+PH+16, 'text-anchor':'middle'});
+    xt.textContent = monthLabel(ym, i);
+    svg.appendChild(xt);
+  });
+
+  series.forEach(function(s){
+    var d = s.values.map(function(v,i){ return (i===0?'M':'L')+xScale(i).toFixed(1)+','+yScale(v||0).toFixed(1); }).join(' ');
+    var attrs = {d:d, fill:'none', stroke:s.colorRef, 'stroke-width':'2', 'stroke-linecap':'round', 'stroke-linejoin':'round'};
+    if (s.dashed) attrs['stroke-dasharray'] = '5,3';
+    svg.appendChild(svgEl('path', attrs));
+    var lastX = xScale(n-1), lastY = yScale(s.values[n-1]||0);
+    svg.appendChild(svgEl('circle', {cx:lastX, cy:lastY, r:'5', fill:'var(--surface)'}));
+    svg.appendChild(svgEl('circle', {cx:lastX, cy:lastY, r:'3.2', fill:s.colorRef}));
+  });
+
+  var crosshair = svgEl('line', {class:'crosshair-line', x1:0, x2:0, y1:M.top, y2:M.top+PH});
+  svg.appendChild(crosshair);
+  var hit2 = svgEl('rect', {x:M.left, y:M.top, width:PW, height:PH, fill:'transparent'});
+  hit2.addEventListener('pointermove', function(ev){
+    var p = screenToSVG(svg, ev.clientX, ev.clientY);
+    var i = Math.max(0, Math.min(n-1, Math.round((p.x-M.left)/PW*(n-1))));
+    var cx = xScale(i);
+    crosshair.setAttribute('x1', cx); crosshair.setAttribute('x2', cx);
+    crosshair.style.opacity = '1';
+    ttShow(ev.clientX, ev.clientY, function(box){
+      var head = el('div','tt-title'); head.textContent = monthLabel(months[i], i).replace("'", "20"); box.appendChild(head);
+      series.forEach(function(s){
+        var hex = s.colorRef.indexOf('var(') === 0 ? getComputedStyle(document.documentElement).getPropertyValue(s.colorRef.slice(4,-1)).trim() : s.colorRef;
+        ttRow(box, hex, s.label, fmt(s.values[i]));
+      });
+    });
+  });
+  hit2.addEventListener('pointerleave', function(){ crosshair.style.opacity='0'; ttHide(); });
+  svg.appendChild(hit2);
+  return svg;
+}
+
+/* ============================================================
+   9. TABLE-TOGGLE WIRING
+   ============================================================ */
+function wireToggle(btn, vizEl, tableEl, buildTableFn){
+  var built = false;
+  btn.addEventListener('click', function(){
+    var showTable = btn.getAttribute('aria-pressed') !== 'true';
+    btn.setAttribute('aria-pressed', showTable ? 'true' : 'false');
+    btn.textContent = showTable ? 'Chart' : 'Table';
+    if (showTable && !built){ tableEl.appendChild(buildTableFn()); built = true; }
+    vizEl.hidden = showTable;
+    tableEl.hidden = !showTable;
+  });
+}
+
+/* ============================================================
+   10. RENDER: STALE BANNER + KPI ROW
+   ============================================================ */
+function renderStaleBanner(){
+  var host = document.getElementById('stale-banner');
+  var pulledAt = META.pulled_at_mt;
+  if (!pulledAt){ host.hidden = true; return; }
+  var d = new Date(pulledAt);
+  if (isNaN(d.getTime())){ host.hidden = true; return; }
+  var ageHours = (Date.now() - d.getTime()) / 3600000;
+  if (ageHours <= 26){ host.hidden = true; return; }
+  host.hidden = false;
+  host.innerHTML = '';
+  var iconSpan = document.createElement('span'); iconSpan.innerHTML = icon('warn', 17);
+  host.appendChild(iconSpan);
+  var txt = document.createElement('span');
+  txt.textContent = 'Data as of ' + formatMtIso(pulledAt) + ', refresh overdue (this page republishes nightly around 3am MT)';
+  host.appendChild(txt);
+}
+
+function deltaChip(curVal, priorVal, opts){
+  opts = opts || {};
+  var isPP = !!opts.pp;
+  var raw = opts.precomputedPct != null ? opts.precomputedPct : (isPP ? (curVal - priorVal) : yoyPct(curVal, priorVal));
+  var wrap = el('span', 'kpi-delta ' + (raw == null ? 'flat' : raw > 0.05 ? 'pos' : raw < -0.05 ? 'neg' : 'flat'));
+  var iconName = raw == null ? 'dash' : raw > 0.05 ? 'arrowUp' : raw < -0.05 ? 'arrowDown' : 'dash';
+  var iconSpan = el('span'); iconSpan.innerHTML = icon(iconName, 13);
+  wrap.appendChild(iconSpan);
+  var txt = el('span');
+  txt.textContent = (isPP ? signedPP1(raw) : signedPct1(raw));
+  wrap.appendChild(txt);
+  var lbl = el('span','kpi-delta-label');
+  lbl.textContent = ' ' + (opts.label || 'vs prior year');
+  wrap.appendChild(lbl);
+  return wrap;
+}
+
+function findByMarketplaceCountry(country){
+  var az = RAW.amazon_orders;
+  if (!az || !az.by_marketplace_mtd) return null;
+  var found = null;
+  az.by_marketplace_mtd.forEach(function(r){ if (r.country === country) found = r; });
+  return found;
+}
+
+function renderKpiRow(){
+  var row = document.getElementById('kpi-row');
+  row.innerHTML = '';
+
+  function tile(labelText, valueText, deltaEl, sparkVals, id, subText){
+    var t = el('div','kpi-tile');
+    t.id = id;
+    var l = el('div','kpi-label'); l.textContent = labelText; t.appendChild(l);
+    var v = el('div','kpi-value'); v.textContent = valueText; t.appendChild(v);
+    if (deltaEl) t.appendChild(deltaEl);
+    if (subText){
+      var sub = el('div','kpi-provisional'); sub.textContent = subText; t.appendChild(sub);
+    }
+    if (sparkVals){
+      var sp = el('div','kpi-spark');
+      sp.appendChild(buildSparkline(sparkVals, 160, 30));
+      t.appendChild(sp);
+    }
+    return t;
+  }
+
+  var totalsSpark = monthlyTotals();
+  var mtdDays = daysBetweenInclusive(META.mtd_start, META.asof_date);
+  var mtdSub = (mtdDays != null && mtdDays < 3)
+    ? (mtdDays + (mtdDays === 1 ? ' day' : ' days') + ' into the month, provisional')
+    : 'Provisional, through ' + formatDateShort(META.asof_date);
+
+  /* Hero: the one figure the page leads with. YTD sales is the annual headline,
+     so it gets the display scale and the wide trend; every other measure drops to
+     the supporting row below. Body sans, proportional figures, exactly one per view. */
+  var hero = document.getElementById('kpi-hero');
+  if (hero){
+    hero.innerHTML = '';
+    var hMain = el('div','kpi-hero-main');
+    var hLabel = el('div','kpi-hero-label'); hLabel.textContent = 'Year to date sales';
+    hMain.appendChild(hLabel);
+    var hVal = el('div','kpi-hero-value'); hVal.textContent = money(TOTAL_ROW.ytd.revenue, true);
+    hMain.appendChild(hVal);
+    var hMeta = el('div','kpi-hero-meta');
+    hMeta.appendChild(deltaChip(TOTAL_ROW.ytd.revenue, TOTAL_ROW.ytd_prior_year.revenue,
+      {label:'vs YTD last year', precomputedPct: TOTAL_ROLLUP_ROW ? TOTAL_ROLLUP_ROW.yoy_ytd_pct : null}));
+    var hAside = el('span','kpi-hero-aside');
+    hAside.textContent = pct1(TOTAL_ROW.ytd.margin_pct) + ' gross margin year to date';
+    hMeta.appendChild(hAside);
+    hMain.appendChild(hMeta);
+    hero.appendChild(hMain);
+
+    var hTrend = el('div','kpi-hero-trend');
+    hTrend.appendChild(buildSparkline(totalsSpark, 640, 74));
+    var hCap = el('div','kpi-hero-trend-cap');
+    hCap.textContent = 'Monthly revenue, trailing 13 months through ' + formatDateShort(META.asof_date);
+    hTrend.appendChild(hCap);
+    hero.appendChild(hTrend);
+  }
+
+  var mtdSalesTile = tile('MTD sales', money(TOTAL_ROW.mtd.revenue, true),
+    deltaChip(TOTAL_ROW.mtd.revenue, TOTAL_ROW.mtd_prior_year.revenue, {label:'vs MTD last year', precomputedPct: TOTAL_ROLLUP_ROW ? TOTAL_ROLLUP_ROW.yoy_mtd_pct : null}),
+    null, 'kpi-mtd-sales', mtdSub);
+  makeKpiTileInteractive(mtdSalesTile, 'kpi-mtd-sales');
+  row.appendChild(mtdSalesTile);
+
+  var mtdMarginTile = tile('MTD gross margin', pct1(TOTAL_ROW.mtd.margin_pct),
+    deltaChip(TOTAL_ROW.mtd.margin_pct, TOTAL_ROW.mtd_prior_year.margin_pct, {pp:true, label:'vs MTD last year'}),
+    null, 'kpi-mtd-margin', mtdDays != null && mtdDays < 3 ? mtdSub : null);
+  makeKpiTileInteractive(mtdMarginTile, 'kpi-mtd-margin');
+  row.appendChild(mtdMarginTile);
+
+  var ytdMarginTile = tile('YTD gross margin', pct1(TOTAL_ROW.ytd.margin_pct),
+    deltaChip(TOTAL_ROW.ytd.margin_pct, TOTAL_ROW.ytd_prior_year.margin_pct, {pp:true, label:'vs YTD last year'}),
+    null, 'kpi-ytd-margin');
+  makeKpiTileInteractive(ytdMarginTile, 'kpi-ytd-margin');
+  row.appendChild(ytdMarginTile);
+
+  var ltd = RAW.life_to_date;
+  var ltdTile = el('div','kpi-tile'); ltdTile.id = 'kpi-ltd';
+  var ltdLabel = el('div','kpi-label'); ltdLabel.textContent = 'Life-to-date, blended'; ltdTile.appendChild(ltdLabel);
+  var ltdRows = el('div','kpi-ltd-rows');
+  [['Sales', money(ltd.income_total, true)], ['Gross profit', money(ltd.gross_profit, true)], ['Margin', pct1(ltd.margin_pct)]].forEach(function(pair){
+    var r = el('div','kpi-ltd-row');
+    var l = el('span','l'); l.textContent = pair[0];
+    var v = el('span','v'); v.textContent = pair[1];
+    r.appendChild(l); r.appendChild(v);
+    ltdRows.appendChild(r);
+  });
+  ltdTile.appendChild(ltdRows);
+  var years = Object.keys(ltd.income_by_year).sort();
+  var sp2 = el('div','kpi-spark');
+  /* 400 = two 192px tracks plus the 16px gap. Matching the viewBox to the rendered
+     width keeps the stroke and endpoint dot at their intended weight. */
+  sp2.appendChild(buildSparkline(years.map(function(y){ return ltd.income_by_year[y]; }), 400, 38));
+  ltdTile.appendChild(sp2);
+  var since = el('div','card-sub'); since.style.marginTop='2px'; since.textContent = 'Since ' + ltd.first_income_date;
+  ltdTile.appendChild(since);
+  makeKpiTileInteractive(ltdTile, 'kpi-ltd');
+  row.appendChild(ltdTile);
+
+  /* Amazon AOV tile: dormant infrastructure, hidden unless meta.features.amazon_aov */
+  var usMp = findByMarketplaceCountry('US');
+  var aovTile = el('div','kpi-tile'); aovTile.id = 'kpi-amazon-aov';
+  if (!FEATURES.amazon_aov) aovTile.hidden = true;
+  var aovLabel = el('div','kpi-label'); aovLabel.textContent = 'Amazon AOV'; aovTile.appendChild(aovLabel);
+  var aovVal = el('div','kpi-value'); aovVal.textContent = usMp ? moneyCents(usMp.aov_native) : 'n/a'; aovTile.appendChild(aovVal);
+  var aovSub = el('div','card-sub'); aovSub.textContent = (usMp && usMp.orders != null ? Number(usMp.orders).toLocaleString('en-US') + ' orders MTD, ' : 'MTD, ') + 'Amazon.com (US), USD'; aovTile.appendChild(aovSub);
+  row.appendChild(aovTile);
+}
+function highlightKpiTiles(period){
+  /* The hero carries the YTD sales figure, so it takes the YTD focus state.
+     'kpi-ytd-sales' stays in the list below and simply resolves to null now. */
+  var heroEl = document.getElementById('kpi-hero');
+  if (heroEl) heroEl.classList.toggle('is-focused', period === 'ytd');
+  ['kpi-mtd-sales','kpi-mtd-margin','kpi-ytd-sales','kpi-ytd-margin'].forEach(function(id){
+    var t = document.getElementById(id);
+    if (!t) return;
+    var on = (period === 'mtd' && id.indexOf('mtd') !== -1) || (period === 'ytd' && id.indexOf('ytd') !== -1);
+    t.classList.toggle('is-focused', on);
+  });
+}
+
+/* ============================================================
+   10b. KPI DRILL: MTD sales, MTD/YTD gross margin, life-to-date.
+   The hero (YTD sales) and the dormant Amazon AOV tile are not
+   included -- only the four supporting tiles listed in the brief.
+   ============================================================ */
+var KPI_DRILL_META = {
+  'kpi-mtd-sales': {eyebrow:'MTD sales detail', title:'MTD sales'},
+  'kpi-mtd-margin': {eyebrow:'MTD gross margin detail', title:'MTD gross margin'},
+  'kpi-ytd-margin': {eyebrow:'YTD gross margin detail', title:'YTD gross margin'},
+  'kpi-ltd': {eyebrow:'Life-to-date detail', title:'Life-to-date, blended'}
+};
+function makeKpiTileInteractive(tileEl, key){
+  tileEl.classList.add('kpi-tile-clickable');
+  tileEl.tabIndex = 0;
+  tileEl.setAttribute('role','button');
+  tileEl.setAttribute('aria-label', 'View detail for ' + (KPI_DRILL_META[key] ? KPI_DRILL_META[key].title : key));
+  function open(){ setKpi(key); }
+  tileEl.addEventListener('click', open);
+  tileEl.addEventListener('keydown', function(ev){ if (ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); open(); } });
+}
+function buildKpiChannelBreakdownTable(period){
+  var rows = ROLLUP_ORDER.map(function(k){ return {key:k, label:ROLLUP_LABEL[k], revenue: PERIOD_BY_ROLLUP[k][period].revenue}; })
+    .sort(function(a,b){ return b.revenue - a.revenue; });
+  var t = el('table','data-table');
+  var thead=el('thead'); var htr=el('tr');
+  htr.appendChild(el('th')).textContent='Channel';
+  htr.appendChild(el('th')).textContent='Revenue';
+  thead.appendChild(htr); t.appendChild(thead);
+  var tbody = el('tbody');
+  var total = 0;
+  rows.forEach(function(r){
+    total += r.revenue;
+    var tr = el('tr');
+    var tdLabel = el('td');
+    var lw = el('span','row-label');
+    var sw = el('span','row-swatch'); sw.style.background = rollupColorRef(r.key);
+    lw.appendChild(sw);
+    var txt = document.createElement('span'); txt.textContent = r.label; lw.appendChild(txt);
+    tdLabel.appendChild(lw);
+    tr.appendChild(tdLabel);
+    tr.appendChild(Object.assign(el('td'), {textContent: moneyCents(r.revenue)}));
+    tbody.appendChild(tr);
+  });
+  var trT = el('tr','total-row');
+  trT.appendChild(Object.assign(el('td'), {textContent:'Total'}));
+  trT.appendChild(Object.assign(el('td'), {textContent:moneyCents(total)}));
+  tbody.appendChild(trT);
+  t.appendChild(tbody);
+  return t;
+}
+function buildLtdByYearTable(ltd){
+  var years = Object.keys(ltd.income_by_year).sort();
+  var t = el('table','data-table');
+  var thead=el('thead'); var htr=el('tr');
+  ['Year','Sales','COGS','Gross profit','Margin'].forEach(function(h){ var th=el('th'); th.textContent=h; htr.appendChild(th); });
+  thead.appendChild(htr); t.appendChild(thead);
+  var tbody = el('tbody');
+  years.forEach(function(y){
+    var inc = ltd.income_by_year[y] || 0;
+    var cogs = (ltd.cogs_by_year || {})[y] || 0;
+    var gp = inc - cogs;
+    var tr = el('tr');
+    tr.appendChild(Object.assign(el('td'), {textContent: y}));
+    tr.appendChild(Object.assign(el('td'), {textContent: moneyCents(inc)}));
+    tr.appendChild(Object.assign(el('td'), {textContent: moneyCents(cogs)}));
+    tr.appendChild(Object.assign(el('td'), {textContent: moneyCents(gp)}));
+    tr.appendChild(Object.assign(el('td'), {textContent: inc !== 0 ? pct1(gp/inc*100) : 'n/a'}));
+    tbody.appendChild(tr);
+  });
+  t.appendChild(tbody);
+  return t;
+}
+function renderKpiDrill(key){
+  var panel = document.getElementById('kpi-drill');
+  if (!key || !KPI_DRILL_META[key]){ panel.hidden = true; panel.innerHTML = ''; return; }
+  panel.hidden = false;
+  panel.innerHTML = '';
+  var meta = KPI_DRILL_META[key];
+
+  var inner = el('div','drill-panel-inner');
+  var head = el('div','drill-head');
+  var titleWrap = el('div');
+  var eyebrow = el('div','drill-eyebrow'); eyebrow.textContent = meta.eyebrow; titleWrap.appendChild(eyebrow);
+  var h3 = el('h3'); h3.textContent = meta.title; titleWrap.appendChild(h3);
+  head.appendChild(titleWrap);
+  var closeBtn = el('button','drill-close'); closeBtn.type='button'; closeBtn.setAttribute('aria-label','Close ' + meta.title + ' detail');
+  closeBtn.innerHTML = icon('close', 14);
+  closeBtn.addEventListener('click', function(){ setKpi(null); });
+  head.appendChild(closeBtn);
+  inner.appendChild(head);
+
+  var hasBreakdown = (key === 'kpi-mtd-sales' || key === 'kpi-ltd');
+  var grid = el('div', hasBreakdown ? 'drill-grid' : 'drill-grid single');
+
+  var trendCard = el('div','card chart-card');
+  var tch = el('div','card-head');
+  var tchTitle = el('div'); var tchH = el('h3');
+  tchH.textContent = key === 'kpi-ltd' ? 'Annual sales' : (key.indexOf('margin') !== -1 ? 'Monthly gross margin' : 'Monthly revenue');
+  tchTitle.appendChild(tchH);
+  tch.appendChild(tchTitle);
+  trendCard.appendChild(tch);
+  var vizWrap = el('div','chart-viz');
+
+  if (key === 'kpi-mtd-sales'){
+    vizWrap.appendChild(buildLineChart(monthlyTotals(), META.trailing_months||[], 'var(--ink-2)', 'Total monthly revenue trend'));
+  } else if (key === 'kpi-mtd-margin' || key === 'kpi-ytd-margin'){
+    vizWrap.appendChild(buildLineChart(monthlyMarginTrend(), META.trailing_months||[], 'var(--ink-2)', 'Total gross margin monthly trend', pctFmt, 'Gross margin'));
+  } else if (key === 'kpi-ltd'){
+    var ltd = RAW.life_to_date;
+    var years = Object.keys(ltd.income_by_year).sort();
+    vizWrap.appendChild(buildYearLineChart(years.map(function(y){ return ltd.income_by_year[y]; }), years, 'var(--ink-2)', 'Life-to-date annual sales trend'));
+  }
+  trendCard.appendChild(vizWrap);
+  grid.appendChild(trendCard);
+
+  if (key === 'kpi-mtd-sales'){
+    var bdCard = el('div','card overflow-x');
+    var bch = el('div','card-head'); var bchH=el('h3'); bchH.textContent='MTD revenue by channel'; bch.appendChild(bchH);
+    bdCard.appendChild(bch);
+    bdCard.appendChild(buildKpiChannelBreakdownTable('mtd'));
+    grid.appendChild(bdCard);
+  } else if (key === 'kpi-ltd'){
+    var ltdCard = el('div','card overflow-x');
+    var lch = el('div','card-head'); var lchH=el('h3'); lchH.textContent='By year'; lch.appendChild(lchH);
+    ltdCard.appendChild(lch);
+    ltdCard.appendChild(buildLtdByYearTable(RAW.life_to_date));
+    grid.appendChild(ltdCard);
+  }
+
+  inner.appendChild(grid);
+  panel.appendChild(inner);
+  /* Scrolling into view is the setter's job (setChannel/setSku/setAccount/setKpi),
+     not this render function's -- render*Drill also runs on initial hash-driven
+     load via loadFromHash()+renderRoute(), where auto-scrolling would be unwanted. */
+}
+
+/* ============================================================
+   11. RENDER: CHANNEL SECTION
+   ============================================================ */
+var trendState = {showPY:false};
+
+function redrawTrendChart(){
+  var viz = document.getElementById('channel-trend-viz');
+  viz.innerHTML = '';
+  var pyVals = trendState.showPY ? monthlyPyTotals() : null;
+  viz.appendChild(buildChannelTrendChart(setChannel, pyVals));
+}
+
+function renderChannelTrend(){
+  document.getElementById('channel-trend-sub').textContent = (META.trailing_months||[]).length + ' months through ' + formatDateLong(META.asof_date);
+  var legend = document.getElementById('channel-trend-legend');
+  legend.innerHTML = '';
+  ROLLUP_ORDER.forEach(function(k){
+    var btn = el('button','legend-item'); btn.type = 'button';
+    btn.setAttribute('aria-label', 'Show ' + ROLLUP_LABEL[k] + ' detail');
+    var sw = el('span','legend-swatch'); sw.style.background = rollupColorRef(k);
+    btn.appendChild(sw);
+    var txt = el('span'); txt.textContent = ROLLUP_LABEL[k]; btn.appendChild(txt);
+    btn.addEventListener('click', function(){ setChannel(k); });
+    legend.appendChild(btn);
+  });
+
+  var pyToggle = document.getElementById('channel-trend-pytoggle');
+  var pyAvailable = monthlyPyTotals() != null;
+  pyToggle.hidden = !pyAvailable;
+  if (pyAvailable){
+    pyToggle.setAttribute('aria-pressed', trendState.showPY ? 'true' : 'false');
+    pyToggle.onclick = function(){
+      trendState.showPY = !trendState.showPY;
+      pyToggle.setAttribute('aria-pressed', trendState.showPY ? 'true' : 'false');
+      var pyLegendItem = document.getElementById('trend-py-legend-item');
+      if (trendState.showPY && !pyLegendItem){
+        var item = el('span','legend-item legend-static'); item.id = 'trend-py-legend-item';
+        var sw = el('span','legend-line-swatch');
+        item.appendChild(sw);
+        var txt = el('span'); txt.textContent = 'Prior year (dashed line)'; item.appendChild(txt);
+        legend.appendChild(item);
+      } else if (!trendState.showPY && pyLegendItem){
+        pyLegendItem.remove();
+      }
+      redrawTrendChart();
+    };
+  }
+
+  var viz = document.getElementById('channel-trend-viz');
+  viz.innerHTML = '';
+  viz.appendChild(buildChannelTrendChart(setChannel, trendState.showPY ? monthlyPyTotals() : null));
+  var tableWrap = document.getElementById('channel-trend-table');
+  tableWrap.innerHTML = '';
+  wireToggle(document.getElementById('channel-trend-toggle'), viz, tableWrap, buildChannelTrendTable);
+}
+
+function marginCell(rollupKey, p){
+  var td = el('td','margin-cell');
+  var g = ROLLUP_META[rollupKey];
+  if (g && g.show_margin === false){
+    var noteFull = g.margin_note || 'margin not meaningful as coded';
+    var parenIdx = noteFull.indexOf('(');
+    var noteShort = parenIdx > 0 ? noteFull.slice(0, parenIdx).trim() : noteFull;
+    var flag = el('div','flag-note');
+    flag.innerHTML = icon('warn', 12);
+    var flagTxt = document.createElement('span'); flagTxt.textContent = noteShort;
+    flag.appendChild(flagTxt);
+    td.title = noteFull + ' (margin as coded: ' + pct1(p.margin_pct) + ')';
+    td.appendChild(flag);
+    return td;
+  }
+  var mv = el('div','margin-value'); mv.textContent = pct1(p.margin_pct); td.appendChild(mv);
+  return td;
+}
+
+function renderChannelTable(period){
+  document.getElementById('channel-table-sub').textContent = (period === 'ytd' ? 'Year to date' : 'Month to date') + ' through ' + formatDateShort(META.asof_date) + ', vs prior year';
+  var host = document.getElementById('channel-table');
+  host.innerHTML = '';
+  var table = el('table','data-table');
+  var thead = el('thead'); var htr = el('tr');
+  ['Channel','Revenue','COGS','GP','Margin','vs PY'].forEach(function(h){ var th=el('th'); th.textContent=h; htr.appendChild(th); });
+  thead.appendChild(htr); table.appendChild(thead);
+  var tbody = el('tbody');
+  var sumRev=0,sumCogs=0,sumGp=0,sumPyRev=0;
+  ROLLUP_ORDER.forEach(function(k){
+    var p = PERIOD_BY_ROLLUP[k][period];
+    var py = PERIOD_BY_ROLLUP[k][period+'_py'];
+    sumRev+=p.revenue; sumCogs+=p.cogs; sumGp+=p.gp; sumPyRev+=py.revenue;
+    var tr = el('tr','clickable');
+    tr.tabIndex = 0; tr.setAttribute('role','button');
+    tr.setAttribute('aria-label', 'Drill into ' + ROLLUP_LABEL[k]);
+    var tdLabel = el('td');
+    var lw = el('span','row-label');
+    var sw = el('span','row-swatch'); sw.style.background = rollupColorRef(k);
+    lw.appendChild(sw);
+    var txt = document.createElement('span'); txt.textContent = ROLLUP_LABEL[k];
+    lw.appendChild(txt);
+    tdLabel.appendChild(lw);
+    tr.appendChild(tdLabel);
+    var tdRev = el('td'); tdRev.textContent = moneyCents(p.revenue); tr.appendChild(tdRev);
+    var tdCogs = el('td'); tdCogs.textContent = moneyCents(p.cogs); tr.appendChild(tdCogs);
+    var tdGp = el('td'); tdGp.textContent = moneyCents(p.gp); tr.appendChild(tdGp);
+    tr.appendChild(marginCell(k, p));
+    var tdPy = el('td'); tdPy.textContent = signedPct1(PERIOD_BY_ROLLUP[k]['yoy_'+period+'_pct']); tr.appendChild(tdPy);
+    tr.addEventListener('click', function(){ setChannel(k); });
+    tr.addEventListener('keydown', function(ev){ if (ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); setChannel(k); } });
+    tbody.appendChild(tr);
+  });
+  var trT = el('tr','total-row');
+  var tdT0 = el('td'); tdT0.textContent='Total'; trT.appendChild(tdT0);
+  var tdT1 = el('td'); tdT1.textContent=moneyCents(sumRev); trT.appendChild(tdT1);
+  var tdT2 = el('td'); tdT2.textContent=moneyCents(sumCogs); trT.appendChild(tdT2);
+  var tdT3 = el('td'); tdT3.textContent=moneyCents(sumGp); trT.appendChild(tdT3);
+  var tdT4 = el('td'); tdT4.textContent=pct1(sumRev!==0?sumGp/sumRev*100:null); trT.appendChild(tdT4);
+  var totalYoy = TOTAL_ROLLUP_ROW ? TOTAL_ROLLUP_ROW['yoy_'+period+'_pct'] : yoyPct(sumRev, sumPyRev);
+  var tdT5 = el('td'); tdT5.textContent=signedPct1(totalYoy); trT.appendChild(tdT5);
+  tbody.appendChild(trT);
+  table.appendChild(tbody);
+  host.appendChild(table);
+}
+
+function renderOrdersAov(period){
+  var card = document.getElementById('orders-aov-card');
+  if (!ORDERS_BY_ROLLUP){ card.hidden = true; return; }
+  card.hidden = false;
+  document.getElementById('orders-aov-sub').textContent = (period === 'ytd' ? 'Year to date' : 'Month to date') + ', distinct posting invoices and cash sales';
+  var host = document.getElementById('orders-aov-table');
+  host.innerHTML = '';
+  var table = el('table','data-table');
+  var thead = el('thead'); var htr = el('tr');
+  ['Channel','Orders','AOV'].forEach(function(h){ var th=el('th'); th.textContent=h; htr.appendChild(th); });
+  thead.appendChild(htr); table.appendChild(thead);
+  var tbody = el('tbody');
+  ROLLUP_ORDER.forEach(function(k){
+    var o = ORDERS_BY_ROLLUP[k];
+    var orders = period === 'ytd' ? o.ytd_orders : o.mtd_orders;
+    var revenue = PERIOD_BY_ROLLUP[k][period].revenue;
+    var tr = el('tr');
+    var tdLabel = el('td');
+    var lw = el('span','row-label');
+    var sw = el('span','row-swatch'); sw.style.background = rollupColorRef(k);
+    lw.appendChild(sw);
+    var txt = document.createElement('span'); txt.textContent = ROLLUP_LABEL[k];
+    lw.appendChild(txt);
+    tdLabel.appendChild(lw);
+    tr.appendChild(tdLabel);
+    if (o.hasNull && orders === 0){
+      var tdDash = el('td','na-cell'); tdDash.textContent = 'n/a'; tr.appendChild(tdDash);
+      var tdNote = el('td','na-cell'); tdNote.style.textAlign='left'; tdNote.style.whiteSpace='normal'; tdNote.textContent = o.notes.join(' '); tr.appendChild(tdNote);
+    } else {
+      var tdOrders = el('td'); tdOrders.textContent = fNumber.format(orders); tr.appendChild(tdOrders);
+      var tdAov = el('td'); tdAov.textContent = orders > 0 ? money(revenue/orders) : 'n/a'; tr.appendChild(tdAov);
+    }
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  host.appendChild(table);
+}
+
+function renderChannelDrill(key, period){
+  var panel = document.getElementById('channel-drill');
+  if (!key){ panel.hidden = true; panel.innerHTML=''; return; }
+  panel.hidden = false;
+  panel.innerHTML = '';
+  var inner = el('div','drill-panel-inner');
+  var head = el('div','drill-head');
+  var titleWrap = el('div');
+  var eyebrow = el('div','drill-eyebrow'); eyebrow.textContent = 'Channel detail'; titleWrap.appendChild(eyebrow);
+  var h3 = el('h3'); h3.textContent = ROLLUP_LABEL[key]; titleWrap.appendChild(h3);
+  head.appendChild(titleWrap);
+  var closeBtn = el('button','drill-close'); closeBtn.type='button'; closeBtn.setAttribute('aria-label','Close channel detail');
+  closeBtn.innerHTML = icon('close', 14);
+  closeBtn.addEventListener('click', function(){ setChannel(null); });
+  head.appendChild(closeBtn);
+  inner.appendChild(head);
+
+  var grid = el('div', key === DTC_KEY ? 'drill-grid' : 'drill-grid single');
+
+  var trendCard = el('div','card chart-card');
+  var tch = el('div','card-head');
+  var tchTitle = el('div'); var tchH = el('h3'); tchH.textContent='Monthly revenue'; tchTitle.appendChild(tchH);
+  tch.appendChild(tchTitle);
+  var tBtn = el('button','table-toggle'); tBtn.type='button'; tBtn.setAttribute('aria-pressed','false'); tBtn.textContent='Table';
+  tch.appendChild(tBtn);
+  trendCard.appendChild(tch);
+  var vizWrap = el('div','chart-viz');
+  var values = monthlyForRollup(key);
+  vizWrap.appendChild(buildLineChart(values, META.trailing_months||[], rollupColorRef(key), ROLLUP_LABEL[key] + ' monthly revenue trend'));
+  trendCard.appendChild(vizWrap);
+  var tableWrap = el('div','chart-table-wrap overflow-x'); tableWrap.hidden = true;
+  trendCard.appendChild(tableWrap);
+  wireToggle(tBtn, vizWrap, tableWrap, function(){
+    var t = el('table','data-table');
+    var thead=el('thead'); var htr=el('tr');
+    htr.appendChild(el('th')).textContent='Month';
+    htr.appendChild(el('th')).textContent='Revenue';
+    thead.appendChild(htr); t.appendChild(thead);
+    var tbody=el('tbody');
+    (META.trailing_months||[]).forEach(function(ym,i){
+      var tr=el('tr');
+      var td0=el('td'); td0.textContent=monthLabel(ym,i).replace("'","20"); tr.appendChild(td0);
+      var td1=el('td'); td1.textContent=moneyCents(values[i]); tr.appendChild(td1);
+      tbody.appendChild(tr);
+    });
+    t.appendChild(tbody);
+    return t;
+  });
+  grid.appendChild(trendCard);
+
+  if (key === DTC_KEY){
+    var regionCard = el('div','card');
+    var rch = el('div','card-head'); var rchH=el('h3'); rchH.textContent='Region split, '+(period==='ytd'?'YTD':'MTD'); rch.appendChild(rchH);
+    regionCard.appendChild(rch);
+    var rr = RAW.dtc_by_region.rollup;
+    var rows2 = el('div','region-rows');
+    ['US','Other'].forEach(function(name){
+      var row = el('div','region-row');
+      var l = el('span','l'); l.textContent = name;
+      var v = el('span','v'); v.textContent = money(rr[name][period]);
+      row.appendChild(l); row.appendChild(v);
+      rows2.appendChild(row);
+      if (name === 'Other'){
+        var byRegion = (RAW.dtc_by_region.by_region||[]).filter(function(r){
+          return US_REGION_IDS.indexOf(r.region_id) === -1 && DQ_REGION_IDS.indexOf(r.region_id) === -1;
+        }).slice().sort(function(a,b){ return b[period]-a[period]; });
+        if (byRegion.length){
+          var subRows = el('div','region-sub-rows');
+          byRegion.forEach(function(r){
+            if (r[period] === 0) return;
+            var sr = el('div','region-sub-row');
+            var sl = el('span'); sl.textContent = (r.region === 'NULL' ? 'Unassigned region' : r.region);
+            var sv = el('span','v'); sv.textContent = money(r[period]);
+            sr.appendChild(sl); sr.appendChild(sv);
+            subRows.appendChild(sr);
+          });
+          rows2.appendChild(subRows);
+        }
+      }
+    });
+    regionCard.appendChild(rows2);
+    var dqRows = (RAW.dtc_by_region.data_quality||[]).length
+      ? RAW.dtc_by_region.data_quality
+      : (RAW.dtc_by_region.by_region||[]).filter(function(r){ return DQ_REGION_IDS.indexOf(r.region_id) !== -1 && r[period] !== 0; });
+    if (dqRows.length){
+      var dqBox = el('div','dq-flag');
+      dqBox.innerHTML = icon('warn', 15);
+      var dqTxt = document.createElement('span');
+      dqTxt.textContent = 'Revenue tagged to reseller region(s) (' + dqRows.map(function(d){ return (d.region || d.name) + (d[period]!=null ? ' - ' + money(d[period]) : ''); }).join(', ') + ') is not a real geography; treated as a coding issue, never folded into Other.';
+      dqBox.appendChild(dqTxt);
+      regionCard.appendChild(dqBox);
+    }
+    grid.appendChild(regionCard);
+  }
+
+  var skuCard = el('div','card');
+  var sch = el('div','card-head'); var schH=el('h3'); schH.textContent='Top SKUs, '+(period==='ytd'?'YTD':'MTD'); sch.appendChild(schH);
+  skuCard.appendChild(sch);
+  var skuList = el('div','sku-list');
+  var list = skuAggFor(period, key).slice(0,10);
+  var maxRev = list.length ? list[0].revenue : 1;
+  list.forEach(function(s, idx){
+    skuList.appendChild(buildSkuRow(s, idx, maxRev, key));
+  });
+  if (!list.length){
+    var empty = el('p','card-sub'); empty.textContent = 'No SKU-level sales for this period.';
+    skuList.appendChild(empty);
+  }
+  skuCard.appendChild(skuList);
+  grid.appendChild(skuCard);
+
+  inner.appendChild(grid);
+  panel.appendChild(inner);
+  /* Scrolling into view is the setter's job (setChannel/setSku/setAccount/setKpi),
+     not this render function's -- render*Drill also runs on initial hash-driven
+     load via loadFromHash()+renderRoute(), where auto-scrolling would be unwanted. */
+}
+
+/* ============================================================
+   12. RENDER: WHAT IS MOVING
+   ============================================================ */
+function buildSkuRow(s, idx, maxRev, rollupKey){
+  var row = el('button','sku-row'); row.type='button';
+  row.setAttribute('aria-label', s.sku + ' ' + s.display_name + ', ' + money(s.revenue) + ', ' + units(s.units) + ' units');
+  var label = el('div','sku-row-label');
+  var code = el('span','sku-code'); code.textContent = s.sku; label.appendChild(code);
+  var name = el('span','sku-name'); name.textContent = s.display_name; label.appendChild(name);
+  row.appendChild(label);
+  var barWrap = el('div','sku-row-bar');
+  var track = el('div','sku-track');
+  var fill = el('div','sku-fill' + (idx===0 ? ' is-top':''));
+  var w = maxRev > 0 ? Math.max(3, (s.revenue/maxRev)*100) : 0;
+  fill.style.width = w + '%';
+  fill.style.background = idx === 0 ? 'var(--accent)' : rollupColorRef(rollupKey);
+  track.appendChild(fill); barWrap.appendChild(track);
+  row.appendChild(barWrap);
+  var val = el('div','sku-row-value');
+  var rev = el('span','sku-revenue'); rev.textContent = money(s.revenue, true);
+  var u = el('span','sku-units'); u.textContent = units(s.units) + ' units';
+  val.appendChild(rev); val.appendChild(u);
+  row.appendChild(val);
+  row.addEventListener('click', function(){ setSku(s.sku); });
+  return row;
+}
+
+function renderMovingSection(period){
+  var grid = document.getElementById('moving-grid');
+  grid.innerHTML = '';
+  MOVING_CARDS.forEach(function(key){
+    var card = el('div','card');
+    var head = el('div','card-head');
+    var titleWrap = el('div');
+    var h3 = el('h3'); h3.textContent = ROLLUP_LABEL[key]; titleWrap.appendChild(h3);
+    var sub = el('p','card-sub'); sub.textContent = (period==='ytd'?'YTD':'MTD') + ' top 10 by revenue'; titleWrap.appendChild(sub);
+    head.appendChild(titleWrap);
+    card.appendChild(head);
+    var list = skuAggFor(period, key).slice(0,10);
+    var maxRev = list.length ? list[0].revenue : 1;
+    var listWrap = el('div','sku-list');
+    if (!list.length){
+      var empty = el('p','card-sub'); empty.textContent = 'No SKU-level sales for this period.';
+      listWrap.appendChild(empty);
+    }
+    list.forEach(function(s, idx){ listWrap.appendChild(buildSkuRow(s, idx, maxRev, key)); });
+    card.appendChild(listWrap);
+    var conc = top5ConcentrationFor(key, period);
+    var note = el('div','concentration-note');
+    var b = document.createElement('b'); b.textContent = pct1(conc);
+    note.appendChild(document.createTextNode('Top 5 SKUs = '));
+    note.appendChild(b);
+    note.appendChild(document.createTextNode(' of ' + ROLLUP_LABEL[key] + ' SKU sales this period.'));
+    card.appendChild(note);
+    grid.appendChild(card);
+  });
+}
+
+/* ============================================================
+   13. RENDER: SKU DRILL
+   ============================================================ */
+function renderSkuDrill(sku, period){
+  var panel = document.getElementById('sku-drill');
+  if (!sku){ panel.hidden = true; panel.innerHTML=''; return; }
+  var found = skuLookupAcrossPeriod(sku, period);
+  if (!found.meta){ panel.hidden = true; panel.innerHTML=''; return; }
+  panel.hidden = false;
+  panel.innerHTML = '';
+  var inner = el('div','drill-panel-inner');
+  var head = el('div','drill-head');
+  var titleWrap = el('div');
+  var eyebrow = el('div','drill-eyebrow'); eyebrow.textContent = 'SKU detail, ' + (period==='ytd'?'YTD':'MTD'); titleWrap.appendChild(eyebrow);
+  var h3 = el('h3');
+  var codeSpan = document.createElement('span'); codeSpan.className='mono'; codeSpan.textContent = found.meta.sku + '  ';
+  h3.appendChild(codeSpan);
+  h3.appendChild(document.createTextNode(found.meta.display_name));
+  titleWrap.appendChild(h3);
+  head.appendChild(titleWrap);
+  var closeBtn = el('button','drill-close'); closeBtn.type='button'; closeBtn.setAttribute('aria-label','Close SKU detail');
+  closeBtn.innerHTML = icon('close', 14);
+  closeBtn.addEventListener('click', function(){ setSku(null); });
+  head.appendChild(closeBtn);
+  inner.appendChild(head);
+
+  var grid = el('div','drill-grid');
+
+  var revCard = el('div','card');
+  var rch = el('div','card-head'); var rchH = el('h3'); rchH.textContent='Revenue by channel'; rch.appendChild(rchH);
+  revCard.appendChild(rch);
+  var maxV = Math.max.apply(null, ROLLUP_ORDER.map(function(k){ return found.byRollup[k]; }).concat([1]));
+  var revList = el('div','sku-list');
+  ROLLUP_ORDER.forEach(function(k){
+    var v = found.byRollup[k];
+    if (v === 0) return;
+    var row = el('div','sku-row'); row.style.cursor='default';
+    var label = el('div','sku-row-label');
+    var name = el('span','sku-name'); name.textContent = ROLLUP_LABEL[k]; label.appendChild(name);
+    row.appendChild(label);
+    var barWrap = el('div','sku-row-bar');
+    var track = el('div','sku-track');
+    var fill = el('div','sku-fill');
+    fill.style.width = Math.max(3, v/maxV*100) + '%';
+    fill.style.background = rollupColorRef(k);
+    track.appendChild(fill); barWrap.appendChild(track);
+    row.appendChild(barWrap);
+    var val = el('div','sku-row-value');
+    var revEl = el('span','sku-revenue'); revEl.textContent = money(v, true);
+    val.appendChild(revEl);
+    row.appendChild(val);
+    revList.appendChild(row);
+  });
+  revCard.appendChild(revList);
+  grid.appendChild(revCard);
+
+  var invCard = el('div','card');
+  var ich = el('div','card-head'); var ichH = el('h3'); ichH.textContent='On-hand by location'; ich.appendChild(ichH);
+  invCard.appendChild(ich);
+  if (kitSkuSet[sku]){
+    var kitNote = el('p','kit-note'); kitNote.textContent = 'Kit item: no on-hand record in NetSuite. Kit availability depends on component stock, not tracked here.';
+    invCard.appendChild(kitNote);
+  } else {
+    if (HAS_DAYS_ON_HAND && daysOnHandBySku[sku]){
+      var doh = daysOnHandBySku[sku];
+      var dohNote = el('p','card-sub'); dohNote.style.marginBottom='8px';
+      dohNote.textContent = 'Days on hand: ' + (doh.days_on_hand != null ? fNumber1.format(doh.days_on_hand) : 'n/a') + ' (avg ' + fNumber1.format(doh.avg_daily_units||0) + ' units/day, trailing 90 days)';
+      invCard.appendChild(dohNote);
+    }
+    var invRows = (onhandBySku[sku]||[]).filter(function(r){ return r.onhand !== 0; }).sort(function(a,b){ return b.onhand - a.onhand; });
+    if (!invRows.length){
+      var none = el('p','card-sub'); none.textContent = 'No on-hand recorded at any location.';
+      invCard.appendChild(none);
+    } else {
+      var t = el('table','data-table');
+      var thead=el('thead'); var htr=el('tr');
+      htr.appendChild(el('th')).textContent='Location';
+      htr.appendChild(el('th')).textContent='On hand';
+      htr.appendChild(el('th')).textContent='Available';
+      thead.appendChild(htr); t.appendChild(thead);
+      var tbody=el('tbody');
+      invRows.forEach(function(r){
+        var tr=el('tr');
+        var td0=el('td'); td0.textContent=r.location; tr.appendChild(td0);
+        var td1=el('td'); td1.textContent=units(r.onhand); if (r.onhand<0) td1.className='neg-onhand'; tr.appendChild(td1);
+        var td2=el('td'); td2.textContent=units(r.available); tr.appendChild(td2);
+        tbody.appendChild(tr);
+      });
+      t.appendChild(tbody);
+      var wrap = el('div','overflow-x'); wrap.appendChild(t);
+      invCard.appendChild(wrap);
+    }
+  }
+  grid.appendChild(invCard);
+
+  inner.appendChild(grid);
+  panel.appendChild(inner);
+  /* Scrolling into view is the setter's job (setChannel/setSku/setAccount/setKpi),
+     not this render function's -- render*Drill also runs on initial hash-driven
+     load via loadFromHash()+renderRoute(), where auto-scrolling would be unwanted. */
+}
+
+/* ============================================================
+   14. RENDER: INVENTORY
+   ============================================================ */
+function statusTier(pct){
+  if (pct < 8) return 'good';
+  if (pct < 20) return 'warning';
+  if (pct < 40) return 'serious';
+  return 'critical';
+}
+function renderInventory(){
+  var oos = RAW.inventory.oos;
+  var oosPct = oos.active_invtpart ? (oos.oos_everywhere/oos.active_invtpart*100) : 0;
+  var tier = statusTier(oosPct);
+
+  var summary = document.getElementById('inv-summary');
+  summary.innerHTML = '';
+
+  var t1 = el('div','status-tile');
+  t1.appendChild(Object.assign(el('div','kpi-label'), {textContent:'Active stocked SKUs'}));
+  t1.appendChild(Object.assign(el('div','kpi-value'), {textContent: fNumber.format(oos.active_invtpart)}));
+  var line1 = el('div','status-line good');
+  line1.innerHTML = icon('box', 15);
+  var l1t = document.createElement('span'); l1t.className='status-line-text'; l1t.textContent='InvtPart items with a NetSuite on-hand record';
+  line1.appendChild(l1t);
+  t1.appendChild(line1);
+  summary.appendChild(t1);
+
+  var t2 = el('div','status-tile');
+  t2.appendChild(Object.assign(el('div','kpi-label'), {textContent:'Out of stock everywhere'}));
+  t2.appendChild(Object.assign(el('div','kpi-value'), {textContent: fNumber.format(oos.oos_everywhere)}));
+  var line2 = el('div','status-line '+tier);
+  line2.innerHTML = icon(tier==='good'?'check':'warn', 15);
+  var l2t = document.createElement('span'); l2t.className='status-line-text'; l2t.textContent = pct1(oosPct) + ' of active SKUs, zero on-hand at every location';
+  line2.appendChild(l2t);
+  t2.appendChild(line2);
+  summary.appendChild(t2);
+
+  var t3 = el('div','status-tile');
+  t3.appendChild(Object.assign(el('div','kpi-label'), {textContent:'Kit SKUs, no on-hand record'}));
+  t3.appendChild(Object.assign(el('div','kpi-value'), {textContent: fNumber.format((RAW.inventory.kit_skus_without_onhand||[]).length)}));
+  var line3 = el('div','status-line warning');
+  line3.innerHTML = icon('info', 15);
+  var l3t = document.createElement('span'); l3t.className='status-line-text'; l3t.textContent='Kit-type items draw from component stock, not tracked at the kit level';
+  line3.appendChild(l3t);
+  t3.appendChild(line3);
+  var checks = el('div','checks-line');
+  var diff = RAW.inventory.tie_out_diff;
+  checks.textContent = 'Checks: location value ' + moneyCents(RAW.inventory.total_value_locations) + ' vs item-header value ' + moneyCents(RAW.inventory.total_value_item_header) + ', diff ' + moneyCents(diff);
+  t3.appendChild(checks);
+  summary.appendChild(t3);
+
+  var host = document.getElementById('inventory-table');
+  host.innerHTML = '';
+  var locIds = {};
+  TOP10_YTD_ALL.forEach(function(s){
+    (onhandBySku[s.sku]||[]).forEach(function(r){ if (r.onhand !== 0) locIds[r.location_id] = r.location; });
+  });
+  var locList = Object.keys(locIds).map(function(id){ return {id:id, name:locIds[id]}; });
+  locList.sort(function(a,b){ return a.name.localeCompare(b.name); });
+
+  if (!locList.length){
+    var empty = el('p','card-sub'); empty.textContent = 'No locations carry on-hand stock for the top-10 YTD SKUs.';
+    host.appendChild(empty);
+    return;
+  }
+
+  var table = el('table','data-table');
+  var thead = el('thead'); var htr = el('tr');
+  htr.appendChild(el('th')).textContent = 'SKU';
+  if (HAS_DAYS_ON_HAND){ var thDoh = el('th'); thDoh.textContent = 'Days on hand'; htr.appendChild(thDoh); }
+  locList.forEach(function(loc){ var th=el('th'); th.textContent=loc.name; htr.appendChild(th); });
+  thead.appendChild(htr); table.appendChild(thead);
+  var tbody = el('tbody');
+  TOP10_YTD_ALL.forEach(function(s){
+    var tr = el('tr');
+    var td0 = el('td');
+    var lbl = el('span','row-label');
+    var code = document.createElement('span'); code.className='mono'; code.style.fontSize='11px'; code.textContent = s.sku;
+    lbl.appendChild(code);
+    td0.appendChild(lbl);
+    var nameSpan = document.createElement('div'); nameSpan.style.color='var(--muted)'; nameSpan.style.fontSize='11px'; nameSpan.textContent = s.display_name;
+    td0.appendChild(nameSpan);
+    tr.appendChild(td0);
+    if (HAS_DAYS_ON_HAND){
+      var tdDoh = el('td');
+      var dohRec = daysOnHandBySku[s.sku];
+      if (kitSkuSet[s.sku] || !dohRec || dohRec.days_on_hand == null) { tdDoh.textContent = 'n/a'; tdDoh.className = 'na-cell'; }
+      else { tdDoh.textContent = fNumber1.format(dohRec.days_on_hand); }
+      tr.appendChild(tdDoh);
+    }
+    if (kitSkuSet[s.sku]){
+      var tdKit = el('td','kit-note'); tdKit.textContent = 'kit: see components'; tdKit.colSpan = locList.length; tdKit.style.textAlign='left';
+      tr.appendChild(tdKit);
+    } else {
+      var bySkuRows = {};
+      (onhandBySku[s.sku]||[]).forEach(function(r){ bySkuRows[r.location_id] = r; });
+      locList.forEach(function(loc){
+        var td = el('td');
+        var r = bySkuRows[loc.id];
+        if (!r || r.onhand === 0){ td.textContent = '0'; td.style.color='var(--muted)'; }
+        else { td.textContent = units(r.onhand); if (r.onhand < 0) td.className = 'neg-onhand'; }
+        tr.appendChild(td);
+      });
+    }
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  host.appendChild(table);
+}
+
+/* ============================================================
+   15. RENDER: AMAZON MARKETPLACES (Orders API, v2 contract)
+   ============================================================ */
+function amazonNotesText(notes){
+  if (!notes) return '';
+  if (typeof notes === 'string') return notes;
+  var parts = [];
+  Object.keys(notes).forEach(function(k){
+    var v = notes[k];
+    if (v == null) return;
+    if (typeof v === 'string'){ parts.push(k + ': ' + v); return; }
+    if (typeof v === 'object'){
+      var bits = [];
+      if (v.status) bits.push(v.status);
+      if (v.error) bits.push(String(v.error).split('{')[0].split('\n')[0].replace(/[:\s]+$/, ''));
+      if (v.note) bits.push(v.note);
+      if (v.report_id) bits.push('report ' + v.report_id);
+      if (bits.length) parts.push(k + ': ' + bits.join(', '));
+    }
+  });
+  return parts.join('; ');
+}
+
+function amazonPlaceholder(host, iconName, msg){
+  var note = el('div','quiet-note');
+  note.innerHTML = icon(iconName, 16);
+  var span = document.createElement('span'); span.textContent = msg;
+  note.appendChild(span);
+  host.appendChild(note);
+}
+
+function renderAmazon(){
+  var host = document.getElementById('amazon-body');
+  host.innerHTML = '';
+  var az = RAW.amazon_orders;
+
+  if (!az){
+    amazonPlaceholder(host, 'info', 'Amazon marketplace data requires the v2 extract (amazon_orders); not present in this data pull. NetSuite-sourced Amazon revenue elsewhere on this page is unaffected.');
+    return;
+  }
+
+  var status = az.status;
+  var notesText = amazonNotesText(az.notes);
+
+  if (status === 'error' || status === 'skipped'){
+    var msg = status === 'error'
+      ? ('Amazon marketplace pull failed' + (notesText ? ' (' + notesText + ')' : '') + '. NetSuite-sourced Amazon revenue elsewhere on this page is unaffected.')
+      : ('Amazon marketplace pull skipped for this extract' + (notesText ? ' (' + notesText + ')' : '') + '. NetSuite-sourced Amazon revenue elsewhere on this page is unaffected.');
+    amazonPlaceholder(host, status === 'error' ? 'warn' : 'info', msg);
+    return;
+  }
+
+  if (status === 'partial'){
+    amazonPlaceholder(host, 'info', 'Partial pull: one or more marketplaces did not return finished data' + (notesText ? ' (' + notesText + ')' : '') + '. Figures below cover only the marketplace(s) that completed.');
+  }
+
+  var byMp = az.by_marketplace_mtd || [];
+  if (!byMp.length){
+    var noRows = el('div','quiet-note'); noRows.style.marginTop = status==='partial' ? '14px' : '0';
+    noRows.innerHTML = icon('info',16);
+    var nrt = document.createElement('span'); nrt.textContent = 'Report completed with no order rows for the MTD window.';
+    noRows.appendChild(nrt);
+    host.appendChild(noRows);
+    return;
+  }
+
+  var mpMeta = {};
+  (az.marketplaces||[]).forEach(function(m){ mpMeta[m.marketplace_id] = m; });
+  var sortedMp = byMp.slice().sort(function(a,b){ return b.sales_native - a.sales_native; });
+
+  var tableCard = el('div','card overflow-x'); tableCard.style.marginBottom = '14px';
+  var tch = el('div','card-head');
+  var tchTitle = el('div');
+  var tchH = el('h3'); tchH.textContent = 'By marketplace, MTD'; tchTitle.appendChild(tchH);
+  var tchSub = el('p','card-sub'); tchSub.textContent = 'Native currency per marketplace' + (az.pulled_through_utc ? '; through ' + formatMtIso(az.pulled_through_utc) : ''); tchTitle.appendChild(tchSub);
+  tch.appendChild(tchTitle);
+  tableCard.appendChild(tch);
+  var table = el('table','data-table');
+  var thead = el('thead'); var htr = el('tr');
+  ['Marketplace','Orders','Units','Sales'].forEach(function(h){ var th=el('th'); th.textContent=h; htr.appendChild(th); });
+  var thAov = el('th'); thAov.textContent = 'AOV'; if (!FEATURES.amazon_aov) thAov.hidden = true; htr.appendChild(thAov);
+  thead.appendChild(htr); table.appendChild(thead);
+  var tbody = el('tbody');
+  sortedMp.forEach(function(mp){
+    var meta = mpMeta[mp.marketplace_id];
+    var tr = el('tr');
+    var td0 = el('td'); td0.textContent = (meta ? meta.name : mp.country) + (meta && meta.in_netsuite ? '' : ''); tr.appendChild(td0);
+    var td1 = el('td'); td1.textContent = fNumber.format(mp.orders); tr.appendChild(td1);
+    var td2 = el('td'); td2.textContent = units(mp.units); tr.appendChild(td2);
+    var td3 = el('td'); td3.textContent = moneyNative(mp.sales_native, mp.currency); tr.appendChild(td3);
+    var td4 = el('td'); td4.textContent = moneyNative(mp.aov_native, mp.currency); if (!FEATURES.amazon_aov) td4.hidden = true; tr.appendChild(td4);
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  tableCard.appendChild(table);
+  host.appendChild(tableCard);
+
+  var nonNsIds = {};
+  (az.marketplaces||[]).forEach(function(m){
+    var extra = (FEATURES.amazon_sku_items_for || []);
+    if (m.in_netsuite === false || extra.indexOf(m.marketplace_id) !== -1) nonNsIds[m.marketplace_id] = m;
+  });
+  var skuRows = az.sku_by_marketplace_mtd || [];
+  var skuByMp = {};
+  skuRows.forEach(function(r){
+    if (!nonNsIds[r.marketplace_id]) return;
+    if (!skuByMp[r.marketplace_id]) skuByMp[r.marketplace_id] = [];
+    skuByMp[r.marketplace_id].push(r);
+  });
+  var mpIdsWithSku = Object.keys(skuByMp);
+  if (mpIdsWithSku.length){
+    var grid = el('div','moving-grid');
+    mpIdsWithSku.forEach(function(mpId){
+      var meta = mpMeta[mpId];
+      var rows = skuByMp[mpId].slice().sort(function(a,b){ return b.sales_native - a.sales_native; }).slice(0,5);
+      var card = el('div','card');
+      var head = el('div','card-head');
+      var titleWrap = el('div');
+      var h3 = el('h3'); h3.textContent = (meta ? meta.name : mpId) + ', top SKUs'; titleWrap.appendChild(h3);
+      var sub = el('p','card-sub'); sub.textContent = 'MTD, not in NetSuite item grain'; titleWrap.appendChild(sub);
+      head.appendChild(titleWrap);
+      card.appendChild(head);
+      var list = el('div','sku-list');
+      var maxRev = rows.length ? rows[0].sales_native : 1;
+      rows.forEach(function(r, idx){
+        var row = el('div','sku-row'); row.style.cursor='default';
+        var label = el('div','sku-row-label');
+        var code = el('span','sku-code'); code.textContent = r.sku; label.appendChild(code);
+        row.appendChild(label);
+        var barWrap = el('div','sku-row-bar');
+        var track = el('div','sku-track');
+        var fill = el('div','sku-fill'+(idx===0?' is-top':''));
+        fill.style.width = Math.max(3, r.sales_native/maxRev*100) + '%';
+        fill.style.background = idx===0 ? 'var(--accent)' : (AMAZON_KEY ? rollupColorRef(AMAZON_KEY) : 'var(--ink-2)');
+        track.appendChild(fill); barWrap.appendChild(track);
+        row.appendChild(barWrap);
+        var val = el('div','sku-row-value');
+        var rev = el('span','sku-revenue'); rev.textContent = moneyNative(r.sales_native, r.currency);
+        var u = el('span','sku-units'); u.textContent = units(r.units) + ' units';
+        val.appendChild(rev); val.appendChild(u);
+        row.appendChild(val);
+        list.appendChild(row);
+      });
+      card.appendChild(list);
+      grid.appendChild(card);
+    });
+    host.appendChild(grid);
+  }
+
+  var caption = el('p','mp-caption');
+  caption.textContent = 'Pull status: ' + status + '.' + (az.pulled_through_utc ? ' Through ' + formatMtIso(az.pulled_through_utc) + '.' : '');
+  host.appendChild(caption);
+}
+
+/* ============================================================
+   16. RENDER: RETURNS
+   ============================================================ */
+function renderReturns(){
+  var host = document.getElementById('returns-table');
+  host.innerHTML = '';
+  var table = el('table','data-table');
+  var thead = el('thead'); var htr = el('tr');
+  ['Channel','MTD credits','MTD count','MTD rate','YTD credits','YTD count','YTD rate'].forEach(function(h){ var th=el('th'); th.textContent=h; htr.appendChild(th); });
+  thead.appendChild(htr); table.appendChild(thead);
+  var tbody = el('tbody');
+  var sM=0,sMc=0,sY=0,sYc=0;
+  ROLLUP_ORDER.forEach(function(k){
+    var r = RETURNS_BY_ROLLUP[k];
+    sM+=r.mtd_credits; sMc+=r.mtd_credit_count; sY+=r.ytd_credits; sYc+=r.ytd_credit_count;
+    var tr = el('tr');
+    var td0 = el('td');
+    var lw = el('span','row-label');
+    var sw = el('span','row-swatch'); sw.style.background = rollupColorRef(k);
+    lw.appendChild(sw);
+    var txt = document.createElement('span'); txt.textContent = ROLLUP_LABEL[k];
+    lw.appendChild(txt);
+    td0.appendChild(lw);
+    tr.appendChild(td0);
+    var td1=el('td'); td1.textContent=moneyCents(r.mtd_credits); tr.appendChild(td1);
+    var td2=el('td'); td2.textContent=fNumber.format(r.mtd_credit_count); tr.appendChild(td2);
+    var td2b=el('td'); td2b.textContent=pct1(r.mtd_return_rate_pct); tr.appendChild(td2b);
+    var td3=el('td'); td3.textContent=moneyCents(r.ytd_credits); tr.appendChild(td3);
+    var td4=el('td'); td4.textContent=fNumber.format(r.ytd_credit_count); tr.appendChild(td4);
+    var td4b=el('td'); td4b.textContent=pct1(r.ytd_return_rate_pct); tr.appendChild(td4b);
+    tbody.appendChild(tr);
+  });
+  var mtdTotalRev = TOTAL_ROW.mtd.revenue, ytdTotalRev = TOTAL_ROW.ytd.revenue;
+  var trT = el('tr','total-row');
+  trT.appendChild(Object.assign(el('td'), {textContent:'Total'}));
+  trT.appendChild(Object.assign(el('td'), {textContent:moneyCents(sM)}));
+  trT.appendChild(Object.assign(el('td'), {textContent:fNumber.format(sMc)}));
+  trT.appendChild(Object.assign(el('td'), {textContent: pct1(mtdTotalRev > 0 ? (-sM/mtdTotalRev*100) : null)}));
+  trT.appendChild(Object.assign(el('td'), {textContent:moneyCents(sY)}));
+  trT.appendChild(Object.assign(el('td'), {textContent:fNumber.format(sYc)}));
+  trT.appendChild(Object.assign(el('td'), {textContent: pct1(ytdTotalRev > 0 ? (-sY/ytdTotalRev*100) : null)}));
+  tbody.appendChild(trT);
+  table.appendChild(tbody);
+  host.appendChild(table);
+}
+
+/* ============================================================
+   16b. RENDER: FINANCIALS V2 (actual-only additions)
+   ============================================================ */
+function asArray(v){ return Array.isArray(v) ? v : []; }
+var CURRENT_YM = (META.asof_date || '').slice(0,7);
+var MONTH_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function monthYearLabel(ym){
+  if (!ym) return 'n/a';
+  var parts = String(ym).split('-');
+  var idx = parseInt(parts[1],10) - 1;
+  return (MONTH_FULL[idx] || parts[1]) + ' ' + parts[0];
+}
+/* Latest ym present, optionally restricted to months strictly before the
+   current open month (closedOnly). Falls back to the max ym present,
+   flagged provisional, when no closed month is in range. */
+function latestYmInfo(rows, ymKey, closedOnly){
+  ymKey = ymKey || 'ym';
+  var set = {};
+  rows.forEach(function(r){ if (r[ymKey]) set[r[ymKey]] = true; });
+  var list = Object.keys(set).sort();
+  if (!list.length) return null;
+  if (closedOnly){
+    var closed = list.filter(function(y){ return y < CURRENT_YM; });
+    if (closed.length) return {ym: closed[closed.length-1], provisional:false};
+    return {ym: list[list.length-1], provisional:true};
+  }
+  return {ym: list[list.length-1], provisional:false};
+}
+function sumLeaf(rows, field){
+  field = field || 'amount';
+  return rows.reduce(function(s,r){ return s + (r.is_leaf === false ? 0 : (r[field]||0)); }, 0);
+}
+function sortByPath(list){
+  return list.slice().sort(function(a,b){
+    var pa = a.path || a.acctnumber || '', pb = b.path || b.acctnumber || '';
+    return pa < pb ? -1 : pa > pb ? 1 : 0;
+  });
+}
+function acctRowEl(r, amountField){
+  var tr = el('tr');
+  var td0 = el('td');
+  var wrap = el('span','acct-row-label');
+  wrap.style.paddingLeft = (Math.max(0, (r.level||0)) * 14) + 'px';
+  var num = el('span','acct-number'); num.textContent = r.acctnumber || ''; wrap.appendChild(num);
+  var name = document.createElement('span'); name.textContent = r.account_name || ''; wrap.appendChild(name);
+  td0.appendChild(wrap);
+  tr.appendChild(td0);
+  var td1 = el('td'); td1.textContent = moneyCents(r[amountField]); tr.appendChild(td1);
+  return tr;
+}
+function acctTotalRowEl(label, amount, cls){
+  var tr = el('tr', cls || 'total-row');
+  tr.appendChild(Object.assign(el('td'), {textContent:label}));
+  tr.appendChild(Object.assign(el('td'), {textContent:moneyCents(amount)}));
+  return tr;
+}
+function acctGroupHeaderEl(label){
+  var tr = el('tr','group-row');
+  var td = el('td'); td.colSpan = 2; td.textContent = label;
+  tr.appendChild(td);
+  return tr;
+}
+/* Clears host, shows a quiet "not available" note for an empty/missing
+   array, and never lets a render exception escape past a labeled note --
+   the page must not white-screen when a v2 section is absent or malformed. */
+function renderGuarded(hostId, data, label, buildFn){
+  var host = document.getElementById(hostId);
+  if (!host) return;
+  host.innerHTML = '';
+  if (!data.length){
+    amazonPlaceholder(host, 'info', label + ' not available this run.');
+    return;
+  }
+  try { buildFn(host); }
+  catch(e){
+    host.innerHTML = '';
+    amazonPlaceholder(host, 'warn', label + ' failed to render this run.');
+    if (window.console && console.error) console.error('[dashboard] ' + label, e);
+  }
+}
+
+/* ---- EBITDA ---- */
+var EBITDA_COLS = [
+  ['net_income','Net income'], ['bank_interest','Bank interest'], ['other_interest','Other interest'],
+  ['da','D&A'], ['ebitda','EBITDA'], ['inventory_adjustments','Inv adj'],
+  ['adjusted_ebitda','Adj EBITDA'], ['non_recurring','Non-recurring'], ['adjusted_ebitda_ex_nr','Adj EBITDA ex NR']
+];
+function renderEbitdaKpis(host, rows, latest){
+  host.innerHTML = '';
+  var latestRow = null;
+  rows.forEach(function(r){ if (r.ym === latest.ym) latestRow = r; });
+  function dollarTile(labelText, valueText, id){
+    var t = el('div','kpi-tile'); t.id = id;
+    var l = el('div','kpi-label'); l.textContent = labelText; t.appendChild(l);
+    var v = el('div','kpi-value'); v.textContent = valueText; t.appendChild(v);
+    if (latest.provisional){
+      var p = el('div','kpi-provisional'); p.textContent = 'Provisional, no closed month in range'; t.appendChild(p);
+    }
+    return t;
+  }
+  host.appendChild(dollarTile('EBITDA, ' + monthYearLabel(latest.ym), latestRow ? money(latestRow.ebitda, true) : 'n/a', 'kpi-ebitda'));
+  host.appendChild(dollarTile('Adjusted EBITDA, ' + monthYearLabel(latest.ym), latestRow ? money(latestRow.adjusted_ebitda, true) : 'n/a', 'kpi-adj-ebitda'));
+
+  var trendTile = el('div','kpi-tile'); trendTile.id = 'kpi-ebitda-trend';
+  var tl = el('div','kpi-label'); tl.textContent = 'Adjusted EBITDA trend'; trendTile.appendChild(tl);
+  var sorted = rows.slice().sort(function(a,b){ return a.ym < b.ym ? -1 : a.ym > b.ym ? 1 : 0; });
+  var sparkVals = sorted.map(function(r){ return r.adjusted_ebitda != null ? r.adjusted_ebitda : (r.ebitda||0); });
+  if (sparkVals.length >= 2){
+    var tv = el('div','kpi-value'); tv.style.fontSize='18px'; tv.textContent = sorted.length + ' months, ' + monthYearLabel(sorted[0].ym) + ' to ' + monthYearLabel(sorted[sorted.length-1].ym);
+    trendTile.appendChild(tv);
+    var sp = el('div','kpi-spark'); sp.appendChild(buildSparkline(sparkVals, 220, 34));
+    trendTile.appendChild(sp);
+  } else {
+    var na = el('div','kpi-value'); na.style.fontSize='16px'; na.textContent = 'Not enough months for a trend'; trendTile.appendChild(na);
+  }
+  host.appendChild(trendTile);
+}
+function buildEbitdaTable(rows){
+  var sorted = rows.slice().sort(function(a,b){ return a.ym < b.ym ? -1 : a.ym > b.ym ? 1 : 0; });
+  var t = el('table','data-table');
+  var thead = el('thead'); var htr = el('tr');
+  htr.appendChild(el('th')).textContent = 'Month';
+  EBITDA_COLS.forEach(function(c){ var th=el('th'); th.textContent=c[1]; htr.appendChild(th); });
+  thead.appendChild(htr); t.appendChild(thead);
+  var tbody = el('tbody');
+  sorted.forEach(function(r){
+    var tr = el('tr');
+    tr.appendChild(Object.assign(el('td'), {textContent: monthYearLabel(r.ym)}));
+    EBITDA_COLS.forEach(function(c){ tr.appendChild(Object.assign(el('td'), {textContent: moneyCents(r[c[0]])})); });
+    tbody.appendChild(tr);
+  });
+  t.appendChild(tbody);
+  return t;
+}
+function renderEbitda(){
+  var rows = asArray(RAW.ebitda_month);
+  var latest = rows.length ? latestYmInfo(rows, 'ym', true) : null;
+  document.getElementById('ebitda-table-sub').textContent = rows.length
+    ? (rows.length + ' months, latest ' + monthYearLabel(latest.ym) + (latest.provisional ? ' (provisional)' : ' (closed)'))
+    : '';
+  renderGuarded('ebitda-kpi-row', rows, 'EBITDA', function(host){ renderEbitdaKpis(host, rows, latest); });
+  renderGuarded('ebitda-table', rows, 'EBITDA by month', function(host){ host.appendChild(buildEbitdaTable(rows)); });
+}
+
+/* ---- Income statement, by account ---- */
+var ACCTTYPE_ORDER = ['Income','COGS','Expense','OthIncome','OthExpense'];
+var ACCTTYPE_LABEL = {Income:'Income', COGS:'Cost of Goods Sold', Expense:'Expenses', OthIncome:'Other Income', OthExpense:'Other Expense'};
+/* Same layout as acctRowEl but clickable -- opens that account's monthly drill.
+   Kept separate from acctRowEl (shared by Balance sheet and elsewhere) so this
+   section is the only one that gains row-level interactivity. */
+function pnlAccountRowEl(r){
+  var tr = el('tr','clickable');
+  tr.tabIndex = 0; tr.setAttribute('role','button');
+  tr.setAttribute('aria-label', 'View monthly detail for ' + r.account_name);
+  var td0 = el('td');
+  var wrap = el('span','acct-row-label');
+  wrap.style.paddingLeft = (Math.max(0, (r.level||0)) * 14) + 'px';
+  var num = el('span','acct-number'); num.textContent = r.acctnumber || ''; wrap.appendChild(num);
+  var name = document.createElement('span'); name.textContent = r.account_name || ''; wrap.appendChild(name);
+  td0.appendChild(wrap);
+  tr.appendChild(td0);
+  var td1 = el('td'); td1.textContent = moneyCents(r.amount); tr.appendChild(td1);
+  function open(){ setAccount(r.account_id); }
+  tr.addEventListener('click', open);
+  tr.addEventListener('keydown', function(ev){ if (ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); open(); } });
+  return tr;
+}
+function buildPnlAccountTable(rows, ym){
+  var forYm = rows.filter(function(r){ return r.ym === ym; });
+  var byType = {}; ACCTTYPE_ORDER.forEach(function(t){ byType[t] = []; });
+  var leftover = [];
+  forYm.forEach(function(r){
+    if (byType.hasOwnProperty(r.accttype)) byType[r.accttype].push(r);
+    else leftover.push(r);
+  });
+  var t = el('table','data-table');
+  var thead = el('thead'); var htr = el('tr');
+  htr.appendChild(el('th')).textContent = 'Account';
+  htr.appendChild(el('th')).textContent = 'Amount';
+  thead.appendChild(htr); t.appendChild(thead);
+  var tbody = el('tbody');
+
+  var totalIncome = sumLeaf(byType.Income), totalCogs = sumLeaf(byType.COGS), totalExpense = sumLeaf(byType.Expense);
+  var totalOthIncome = sumLeaf(byType.OthIncome), totalOthExpense = sumLeaf(byType.OthExpense);
+  var grossProfit = totalIncome - totalCogs;
+  var netOrdinary = grossProfit - totalExpense;
+  var netOther = totalOthIncome - totalOthExpense;
+  var netIncome = netOrdinary + netOther;
+
+  tbody.appendChild(acctGroupHeaderEl(ACCTTYPE_LABEL.Income));
+  sortByPath(byType.Income).forEach(function(r){ tbody.appendChild(pnlAccountRowEl(r)); });
+  tbody.appendChild(acctTotalRowEl('Total income', totalIncome));
+
+  tbody.appendChild(acctGroupHeaderEl(ACCTTYPE_LABEL.COGS));
+  sortByPath(byType.COGS).forEach(function(r){ tbody.appendChild(pnlAccountRowEl(r)); });
+  tbody.appendChild(acctTotalRowEl('Total COGS', totalCogs));
+  tbody.appendChild(acctTotalRowEl('Gross profit', grossProfit));
+
+  tbody.appendChild(acctGroupHeaderEl(ACCTTYPE_LABEL.Expense));
+  sortByPath(byType.Expense).forEach(function(r){ tbody.appendChild(pnlAccountRowEl(r)); });
+  tbody.appendChild(acctTotalRowEl('Total expense', totalExpense));
+  tbody.appendChild(acctTotalRowEl('Net ordinary income', netOrdinary));
+
+  if (byType.OthIncome.length || byType.OthExpense.length){
+    tbody.appendChild(acctGroupHeaderEl(ACCTTYPE_LABEL.OthIncome));
+    sortByPath(byType.OthIncome).forEach(function(r){ tbody.appendChild(pnlAccountRowEl(r)); });
+    tbody.appendChild(acctTotalRowEl('Total other income', totalOthIncome));
+    tbody.appendChild(acctGroupHeaderEl(ACCTTYPE_LABEL.OthExpense));
+    sortByPath(byType.OthExpense).forEach(function(r){ tbody.appendChild(pnlAccountRowEl(r)); });
+    tbody.appendChild(acctTotalRowEl('Total other expense', totalOthExpense));
+    tbody.appendChild(acctTotalRowEl('Net other', netOther));
+  }
+
+  if (leftover.length){
+    tbody.appendChild(acctGroupHeaderEl('Other (unrecognized account type)'));
+    sortByPath(leftover).forEach(function(r){ tbody.appendChild(pnlAccountRowEl(r)); });
+  }
+
+  tbody.appendChild(acctTotalRowEl('Net income', netIncome, 'total-row grand-total'));
+  t.appendChild(tbody);
+  return t;
+}
+function renderPnlByAccount(){
+  var rows = asArray(RAW.pnl_by_account_month);
+  var latest = rows.length ? latestYmInfo(rows, 'ym', true) : null;
+  document.getElementById('pnl-account-sub').textContent = rows.length
+    ? (monthYearLabel(latest.ym) + (latest.provisional ? ' (provisional)' : ' (closed)'))
+    : '';
+  renderGuarded('pnl-account-table', rows, 'Income statement', function(host){ host.appendChild(buildPnlAccountTable(rows, latest.ym)); });
+}
+
+/* ---- P&L account drill (opened by clicking a row in the account table above) ---- */
+function renderPnlAccountDrill(accountId){
+  var panel = document.getElementById('pnl-account-drill');
+  var rows = accountId != null ? asArray(RAW.pnl_by_account_month).filter(function(r){ return String(r.account_id) === String(accountId); }) : [];
+  if (!accountId || !rows.length){ panel.hidden = true; panel.innerHTML = ''; return; }
+  panel.hidden = false;
+  panel.innerHTML = '';
+
+  var meta = rows[0];
+  var inner = el('div','drill-panel-inner');
+  var head = el('div','drill-head');
+  var titleWrap = el('div');
+  var eyebrow = el('div','drill-eyebrow'); eyebrow.textContent = 'Account detail'; titleWrap.appendChild(eyebrow);
+  var h3 = el('h3'); h3.textContent = meta.account_name + ' (' + meta.acctnumber + ')'; titleWrap.appendChild(h3);
+  head.appendChild(titleWrap);
+  var closeBtn = el('button','drill-close'); closeBtn.type='button'; closeBtn.setAttribute('aria-label','Close account detail');
+  closeBtn.innerHTML = icon('close', 14);
+  closeBtn.addEventListener('click', function(){ setAccount(null); });
+  head.appendChild(closeBtn);
+  inner.appendChild(head);
+
+  var byYm = {};
+  rows.forEach(function(r){ byYm[r.ym] = r.amount; });
+  var months = META.trailing_months || [];
+  var values = months.map(function(ym){ return byYm.hasOwnProperty(ym) ? byYm[ym] : 0; });
+
+  var grid = el('div','drill-grid single');
+  var trendCard = el('div','card chart-card');
+  var tch = el('div','card-head');
+  var tchTitle = el('div'); var tchH = el('h3'); tchH.textContent='Monthly amount'; tchTitle.appendChild(tchH);
+  tch.appendChild(tchTitle);
+  var tBtn = el('button','table-toggle'); tBtn.type='button'; tBtn.setAttribute('aria-pressed','false'); tBtn.textContent='Table';
+  tch.appendChild(tBtn);
+  trendCard.appendChild(tch);
+  var vizWrap = el('div','chart-viz');
+  vizWrap.appendChild(buildLineChart(values, months, 'var(--ink-2)', meta.account_name + ' monthly amount trend', money, 'Amount'));
+  trendCard.appendChild(vizWrap);
+  var tableWrap = el('div','chart-table-wrap overflow-x'); tableWrap.hidden = true;
+  trendCard.appendChild(tableWrap);
+  wireToggle(tBtn, vizWrap, tableWrap, function(){
+    var t = el('table','data-table');
+    var thead=el('thead'); var htr=el('tr');
+    htr.appendChild(el('th')).textContent='Month';
+    htr.appendChild(el('th')).textContent='Amount';
+    thead.appendChild(htr); t.appendChild(thead);
+    var tbody=el('tbody');
+    months.forEach(function(ym,i){
+      var tr=el('tr');
+      var td0=el('td'); td0.textContent=monthLabel(ym,i).replace("'","20"); tr.appendChild(td0);
+      var td1=el('td'); td1.textContent=moneyCents(values[i]); tr.appendChild(td1);
+      tbody.appendChild(tr);
+    });
+    t.appendChild(tbody);
+    return t;
+  });
+  grid.appendChild(trendCard);
+  inner.appendChild(grid);
+  panel.appendChild(inner);
+  /* Scrolling into view is the setter's job (setChannel/setSku/setAccount/setKpi),
+     not this render function's -- render*Drill also runs on initial hash-driven
+     load via loadFromHash()+renderRoute(), where auto-scrolling would be unwanted. */
+}
+
+/* ---- Gross to net by channel ---- */
+function buildChannelGrossNetTable(rows, ym){
+  var forYm = rows.filter(function(r){ return r.ym === ym; }).sort(function(a,b){ return (b.net_revenue||0) - (a.net_revenue||0); });
+  var t = el('table','data-table');
+  var thead = el('thead'); var htr = el('tr');
+  ['Channel','Gross revenue','Discounts','Returns','Net revenue'].forEach(function(h){ var th=el('th'); th.textContent=h; htr.appendChild(th); });
+  thead.appendChild(htr); t.appendChild(thead);
+  var tbody = el('tbody');
+  var sG=0,sD=0,sR=0,sN=0;
+  forYm.forEach(function(r){
+    sG+=(r.gross_revenue||0); sD+=(r.discounts||0); sR+=(r.returns||0); sN+=(r.net_revenue||0);
+    var tr = el('tr');
+    tr.appendChild(Object.assign(el('td'), {textContent: r.channel || 'Unassigned'}));
+    tr.appendChild(Object.assign(el('td'), {textContent: moneyCents(r.gross_revenue)}));
+    tr.appendChild(Object.assign(el('td'), {textContent: moneyCents(r.discounts)}));
+    tr.appendChild(Object.assign(el('td'), {textContent: moneyCents(r.returns)}));
+    tr.appendChild(Object.assign(el('td'), {textContent: moneyCents(r.net_revenue)}));
+    tbody.appendChild(tr);
+  });
+  var trT = el('tr','total-row');
+  trT.appendChild(Object.assign(el('td'), {textContent:'Total'}));
+  trT.appendChild(Object.assign(el('td'), {textContent:moneyCents(sG)}));
+  trT.appendChild(Object.assign(el('td'), {textContent:moneyCents(sD)}));
+  trT.appendChild(Object.assign(el('td'), {textContent:moneyCents(sR)}));
+  trT.appendChild(Object.assign(el('td'), {textContent:moneyCents(sN)}));
+  tbody.appendChild(trT);
+  t.appendChild(tbody);
+  return t;
+}
+function renderChannelGrossNet(){
+  var rows = asArray(RAW.pnl_channel_gross_net);
+  var latest = rows.length ? latestYmInfo(rows, 'ym', true) : null;
+  document.getElementById('channel-gross-net-sub').textContent = rows.length
+    ? (monthYearLabel(latest.ym) + (latest.provisional ? ' (provisional)' : ' (closed)'))
+    : '';
+  renderGuarded('channel-gross-net-table', rows, 'Gross to net by channel', function(host){ host.appendChild(buildChannelGrossNetTable(rows, latest.ym)); });
+}
+
+/* ---- Balance sheet ---- */
+var BS_ASSET_TYPES = {Bank:1, AcctRec:1, OthCurrAsset:1, FixedAsset:1, OthAsset:1, UnbilledRec:1, DeferExpense:1};
+var BS_LIAB_TYPES = {AcctPay:1, CredCard:1, OthCurrLiab:1, LongTermLiab:1};
+var BS_EQUITY_TYPES = {Equity:1};
+function bsGroupOf(accttype){
+  if (BS_ASSET_TYPES[accttype]) return 'Assets';
+  if (BS_LIAB_TYPES[accttype]) return 'Liabilities';
+  if (BS_EQUITY_TYPES[accttype]) return 'Equity';
+  return 'Other';
+}
+/* Collapsed by default; a group toggle re-renders the whole balance sheet
+   (cheap -- ~150 rows) rather than hand-patching row visibility in place. */
+var BS_GROUP_EXPANDED = {Assets:false, Liabilities:false, Equity:false};
+function bsGroupToggleRowEl(label, groupKey){
+  var expanded = !!BS_GROUP_EXPANDED[groupKey];
+  var tr = el('tr','group-row clickable');
+  tr.tabIndex = 0; tr.setAttribute('role','button');
+  tr.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  tr.setAttribute('aria-label', (expanded ? 'Collapse ' : 'Expand ') + label + ' detail');
+  var td = el('td'); td.colSpan = 2;
+  var wrap = el('span','bs-group-toggle-label');
+  var chev = document.createElement('span'); chev.className = 'bs-chevron' + (expanded ? ' is-open' : ''); chev.innerHTML = icon('chevron', 11);
+  wrap.appendChild(chev);
+  var txt = document.createElement('span'); txt.textContent = label;
+  wrap.appendChild(txt);
+  td.appendChild(wrap);
+  tr.appendChild(td);
+  function toggle(){ BS_GROUP_EXPANDED[groupKey] = !BS_GROUP_EXPANDED[groupKey]; renderBalanceSheet(); }
+  tr.addEventListener('click', toggle);
+  tr.addEventListener('keydown', function(ev){ if (ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); toggle(); } });
+  return tr;
+}
+/* Returns the table element plus the three group totals, so the caller
+   (renderBalanceSheet) can drive the "assets = liabilities + equity" check
+   line from the same numbers the table itself footed, rather than re-summing. */
+function buildBalanceSheetTable(rows, ym){
+  // Show only accounts carrying a balance (zero-balance leaves add 0 to every subtotal, so
+  // this is display-only and never changes a total). Matches NetSuite's zero-suppression.
+  var forYm = rows.filter(function(r){ return r.ym === ym && Math.round((r.balance||0)*100) !== 0; });
+  var groups = {Assets:[], Liabilities:[], Equity:[], Other:[]};
+  forYm.forEach(function(r){ groups[bsGroupOf(r.accttype)].push(r); });
+  var t = el('table','data-table');
+  var thead=el('thead'); var htr=el('tr');
+  htr.appendChild(el('th')).textContent='Account';
+  htr.appendChild(el('th')).textContent='Balance';
+  thead.appendChild(htr); t.appendChild(thead);
+  var tbody = el('tbody');
+
+  var totalAssets = sumLeaf(groups.Assets, 'balance');
+  var totalLiab = sumLeaf(groups.Liabilities, 'balance');
+  var totalEquity = sumLeaf(groups.Equity, 'balance');
+
+  tbody.appendChild(bsGroupToggleRowEl('Assets', 'Assets'));
+  if (BS_GROUP_EXPANDED.Assets) sortByPath(groups.Assets).forEach(function(r){ tbody.appendChild(acctRowEl(r,'balance')); });
+  tbody.appendChild(acctTotalRowEl('Total assets', totalAssets));
+
+  tbody.appendChild(bsGroupToggleRowEl('Liabilities', 'Liabilities'));
+  if (BS_GROUP_EXPANDED.Liabilities) sortByPath(groups.Liabilities).forEach(function(r){ tbody.appendChild(acctRowEl(r,'balance')); });
+  tbody.appendChild(acctTotalRowEl('Total liabilities', totalLiab));
+
+  tbody.appendChild(bsGroupToggleRowEl('Equity', 'Equity'));
+  if (BS_GROUP_EXPANDED.Equity) sortByPath(groups.Equity).forEach(function(r){ tbody.appendChild(acctRowEl(r,'balance')); });
+  tbody.appendChild(acctTotalRowEl('Total equity', totalEquity));
+
+  if (groups.Other.length){
+    tbody.appendChild(acctGroupHeaderEl('Other (unrecognized account type)'));
+    sortByPath(groups.Other).forEach(function(r){ tbody.appendChild(acctRowEl(r,'balance')); });
+  }
+
+  tbody.appendChild(acctTotalRowEl('Total liabilities and equity', totalLiab+totalEquity, 'total-row grand-total'));
+  t.appendChild(tbody);
+
+  var diff = totalAssets - (totalLiab+totalEquity);
+  if (Math.abs(diff) > 1){
+    var flagRow = el('tr');
+    var td = el('td'); td.colSpan = 2; td.style.textAlign='left'; td.style.whiteSpace='normal';
+    td.innerHTML = icon('warn', 12);
+    var span = document.createElement('span'); span.style.marginLeft='6px'; span.style.color='var(--status-warning)'; span.style.fontWeight='500';
+    span.textContent = 'Assets do not tie to liabilities + equity (diff ' + moneyCents(diff) + '); leaf-level rounding or an unrecognized account type may be the cause.';
+    td.appendChild(span);
+    flagRow.appendChild(td);
+    tbody.appendChild(flagRow);
+  }
+  return {el:t, totalAssets:totalAssets, totalLiab:totalLiab, totalEquity:totalEquity};
+}
+var BS_METHOD_LABEL = {anchor:'anchor balance', increment:'incremental roll-forward', snapshot:'live NetSuite snapshot'};
+function renderBalanceSheet(){
+  var rows = asArray(RAW.bs_by_account_month);
+  var latest = rows.length ? latestYmInfo(rows, 'ym', false) : null;
+  var isIncrement = false;
+  if (latest) rows.forEach(function(r){ if (r.ym === latest.ym && r.method === 'increment') isIncrement = true; });
+  document.getElementById('balance-sheet-sub').textContent = rows.length
+    ? ('As of ' + monthYearLabel(latest.ym) + (isIncrement ? ' (provisional)' : ''))
+    : 'Balance sheet not available this run.';
+
+  // Reset the check line, method caption and trend viz; the renderGuarded buildFn below
+  // repopulates them only when there is a latest month to render against.
+  var checkHost = document.getElementById('balance-sheet-check');
+  checkHost.className = 'bs-check-line'; checkHost.innerHTML = '';
+  document.getElementById('balance-sheet-method-note').textContent = '';
+  document.getElementById('balance-sheet-trend-sub').textContent = '';
+  document.getElementById('balance-sheet-trend-viz').innerHTML = '';
+
+  renderGuarded('balance-sheet-table', rows, 'Balance sheet', function(host){
+    var built = buildBalanceSheetTable(rows, latest.ym);
+    host.appendChild(built.el);
+
+    var diff = built.totalAssets - (built.totalLiab + built.totalEquity);
+    var ok = Math.abs(diff) <= 1;
+    checkHost.className = 'bs-check-line ' + (ok ? 'pass' : 'fail');
+    var ic = document.createElement('span'); ic.innerHTML = icon(ok ? 'check' : 'warn', 14); checkHost.appendChild(ic);
+    var checkTxt = document.createElement('span');
+    checkTxt.textContent = 'Balance check: assets ' + moneyCents(built.totalAssets) + ' = liabilities + equity ' + moneyCents(built.totalLiab + built.totalEquity)
+      + (ok ? ', ties to the cent.' : ' -- off by ' + moneyCents(diff) + '.');
+    checkHost.appendChild(checkTxt);
+
+    // Method-by-month caption and a total-assets trend across every ym present, not just latest.
+    var monthsBS = Object.keys(rows.reduce(function(s,r){ s[r.ym]=1; return s; }, {})).sort();
+    var methodByYm = {}, assetsByYm = {};
+    rows.forEach(function(r){
+      if (!methodByYm[r.ym]) methodByYm[r.ym] = r.method;
+      if (r.is_leaf !== false && bsGroupOf(r.accttype) === 'Assets') assetsByYm[r.ym] = (assetsByYm[r.ym]||0) + (r.balance||0);
+    });
+    document.getElementById('balance-sheet-method-note').textContent = monthsBS.map(function(ym){
+      return monthYearLabel(ym).split(' ')[0] + ': ' + (BS_METHOD_LABEL[methodByYm[ym]] || methodByYm[ym] || 'n/a');
+    }).join('. ') + '.';
+
+    var trendViz = document.getElementById('balance-sheet-trend-viz');
+    if (monthsBS.length >= 2){
+      document.getElementById('balance-sheet-trend-sub').textContent = monthsBS.length + ' months';
+      trendViz.appendChild(buildLineChart(monthsBS.map(function(ym){ return assetsByYm[ym]||0; }), monthsBS, 'var(--ink-2)', 'Total assets, trailing months', money, 'Total assets'));
+    } else {
+      amazonPlaceholder(trendViz, 'info', 'Not enough months for a trend.');
+    }
+  });
+
+  var cashRows = asArray(RAW.cash_positions);
+  var cashLatest = cashRows.length ? latestYmInfo(cashRows, 'ym', false) : null;
+  document.getElementById('cash-positions-sub').textContent = (cashRows.length && cashLatest) ? ('As of ' + monthYearLabel(cashLatest.ym)) : '';
+  renderGuarded('cash-positions-table', cashRows, 'Cash by account', function(host){
+    var forYm = (cashLatest ? cashRows.filter(function(r){ return r.ym === cashLatest.ym; }) : cashRows.slice())
+      .sort(function(a,b){ return (b.balance||0)-(a.balance||0); });
+    var t = el('table','data-table');
+    var thead=el('thead'); var htr=el('tr');
+    htr.appendChild(el('th')).textContent='Account';
+    htr.appendChild(el('th')).textContent='Balance';
+    thead.appendChild(htr); t.appendChild(thead);
+    var tbody=el('tbody');
+    var total=0;
+    forYm.forEach(function(r){
+      total += (r.balance||0);
+      var tr=el('tr');
+      tr.appendChild(Object.assign(el('td'),{textContent:r.account_name||r.acctnumber||''}));
+      tr.appendChild(Object.assign(el('td'),{textContent:moneyCents(r.balance)}));
+      tbody.appendChild(tr);
+    });
+    var trT=el('tr','total-row');
+    trT.appendChild(Object.assign(el('td'),{textContent:'Total cash'}));
+    trT.appendChild(Object.assign(el('td'),{textContent:moneyCents(total)}));
+    tbody.appendChild(trT);
+    t.appendChild(tbody);
+    host.appendChild(t);
+  });
+}
+
+/* ---- Cash flow ---- */
+var CF_CATEGORIES = ['operating','investing','financing'];
+var CF_CATEGORY_LABEL = {operating:'Operating activities', investing:'Investing activities', financing:'Financing activities'};
+function buildCashFlowTable(rows, ym){
+  var forYm = rows.filter(function(r){ return r.ym === ym; });
+  var byCat = {operating:[], investing:[], financing:[]};
+  var totals = [];
+  forYm.forEach(function(r){
+    var cat = (r.cf_category||'').toLowerCase();
+    if (byCat.hasOwnProperty(cat)) byCat[cat].push(r); else totals.push(r);
+  });
+  function bySr(list){ return list.slice().sort(function(a,b){ return (a.cf_statement_row||0)-(b.cf_statement_row||0); }); }
+  var t = el('table','data-table');
+  var thead=el('thead'); var htr=el('tr');
+  htr.appendChild(el('th')).textContent='Line';
+  htr.appendChild(el('th')).textContent='Amount';
+  thead.appendChild(htr); t.appendChild(thead);
+  var tbody = el('tbody');
+  function lineRow(r, cls){
+    var tr=el('tr', cls);
+    tr.appendChild(Object.assign(el('td'),{textContent:r.cf_line||''}));
+    tr.appendChild(Object.assign(el('td'),{textContent:moneyCents(r.amount)}));
+    return tr;
+  }
+  CF_CATEGORIES.forEach(function(cat){
+    if (!byCat[cat].length) return;
+    tbody.appendChild(acctGroupHeaderEl(CF_CATEGORY_LABEL[cat]));
+    bySr(byCat[cat]).forEach(function(r){ tbody.appendChild(lineRow(r)); });
+  });
+  if (totals.length){
+    tbody.appendChild(acctGroupHeaderEl('Totals'));
+    bySr(totals).forEach(function(r){ tbody.appendChild(lineRow(r, 'total-row')); });
+  }
+  t.appendChild(tbody);
+  return t;
+}
+function renderCashFlow(){
+  var rows = asArray(RAW.cf_month);
+  var latest = rows.length ? latestYmInfo(rows, 'ym', true) : null;
+  document.getElementById('cashflow-sub').textContent = rows.length
+    ? (monthYearLabel(latest.ym) + (latest.provisional ? ' (provisional)' : ' (closed)'))
+    : '';
+  renderGuarded('cashflow-table', rows, 'Cash flow', function(host){ host.appendChild(buildCashFlowTable(rows, latest.ym)); });
+}
+
+/* ---- Working capital: AR/AP aging, open orders, item cost ---- */
+var AGING_BUCKET_ORDER = ['not_yet_due','1_30','31_60','61_90','over_90','no_duedate','TOTAL'];
+var AGING_BUCKET_LABEL = {not_yet_due:'Not yet due', '1_30':'1-30 days', '31_60':'31-60 days', '61_90':'61-90 days', over_90:'Over 90 days', no_duedate:'No due date', TOTAL:'Total'};
+function buildAgingTable(rows){
+  var byBucket = {};
+  rows.forEach(function(r){ byBucket[r.bucket] = r; });
+  var t = el('table','data-table');
+  var thead=el('thead'); var htr=el('tr');
+  ['Bucket','Amount','Open count'].forEach(function(h){ var th=el('th'); th.textContent=h; htr.appendChild(th); });
+  thead.appendChild(htr); t.appendChild(thead);
+  var tbody=el('tbody');
+  function rowFor(b, r){
+    var tr = el('tr', b==='TOTAL' ? 'total-row' : null);
+    tr.appendChild(Object.assign(el('td'),{textContent:AGING_BUCKET_LABEL[b]||b}));
+    tr.appendChild(Object.assign(el('td'),{textContent:moneyCents(r.amount)}));
+    tr.appendChild(Object.assign(el('td'),{textContent:r.open_count!=null?fNumber.format(r.open_count):'n/a'}));
+    return tr;
+  }
+  AGING_BUCKET_ORDER.forEach(function(b){ if (byBucket[b]) tbody.appendChild(rowFor(b, byBucket[b])); });
+  Object.keys(byBucket).forEach(function(b){ if (AGING_BUCKET_ORDER.indexOf(b) === -1) tbody.appendChild(rowFor(b, byBucket[b])); });
+  t.appendChild(tbody);
+  return t;
+}
+function renderArApAging(){
+  var ar = asArray(RAW.ar_aging);
+  var ap = asArray(RAW.ap_aging);
+  document.getElementById('ar-aging-sub').textContent = (ar.length && ar[0].asof_date) ? ('As of ' + ar[0].asof_date) : '';
+  document.getElementById('ap-aging-sub').textContent = (ap.length && ap[0].asof_date) ? ('As of ' + ap[0].asof_date) : '';
+  renderGuarded('ar-aging-table', ar, 'AR aging', function(host){ host.appendChild(buildAgingTable(ar)); });
+  renderGuarded('ap-aging-table', ap, 'AP aging', function(host){ host.appendChild(buildAgingTable(ap)); });
+}
+function renderOpenOrders(){
+  var rows = asArray(RAW.open_orders);
+  var soRows = rows.filter(function(r){ return (r.order_type||'').toUpperCase() === 'SO'; });
+  var poRows = rows.filter(function(r){ return (r.order_type||'').toUpperCase() === 'PO'; });
+
+  document.getElementById('open-so-sub').textContent = soRows.length ? 'Amount not yet shipped, by expected ship month' : '';
+  renderGuarded('open-so-table', soRows, 'Open sales orders', function(host){
+    var sorted = soRows.slice().sort(function(a,b){
+      var ya = a.expected_ym || 'zzzz', yb = b.expected_ym || 'zzzz';
+      return ya < yb ? -1 : ya > yb ? 1 : 0;
+    });
+    var t = el('table','data-table');
+    var thead=el('thead'); var htr=el('tr');
+    ['Expected ship month','Amount open','Orders'].forEach(function(h){ var th=el('th'); th.textContent=h; htr.appendChild(th); });
+    thead.appendChild(htr); t.appendChild(thead);
+    var tbody = el('tbody');
+    var sA=0, sC=0;
+    sorted.forEach(function(r){
+      sA += (r.amount_open||0); sC += (r.count||0);
+      var tr = el('tr');
+      tr.appendChild(Object.assign(el('td'),{textContent: r.expected_ym ? monthYearLabel(r.expected_ym) : 'No ship date'}));
+      tr.appendChild(Object.assign(el('td'),{textContent: moneyCents(r.amount_open)}));
+      tr.appendChild(Object.assign(el('td'),{textContent: fNumber.format(r.count||0)}));
+      tbody.appendChild(tr);
+    });
+    var trT = el('tr','total-row');
+    trT.appendChild(Object.assign(el('td'),{textContent:'Total'}));
+    trT.appendChild(Object.assign(el('td'),{textContent:moneyCents(sA)}));
+    trT.appendChild(Object.assign(el('td'),{textContent:fNumber.format(sC)}));
+    tbody.appendChild(trT);
+    t.appendChild(tbody);
+    host.appendChild(t);
+  });
+
+  renderGuarded('open-po-summary', poRows, 'Open purchase orders', function(host){
+    var totalCount = 0, totalAmount = 0, noDueCount = 0, explicitShare = null;
+    poRows.forEach(function(r){
+      if (r.no_duedate_share != null) explicitShare = r.no_duedate_share;
+      totalCount += (r.count||0);
+      totalAmount += (r.amount_open||0);
+      if (r.expected_ym == null || r.no_duedate === true) noDueCount += (r.count||0);
+    });
+    var share = explicitShare != null ? explicitShare : (totalCount > 0 ? (noDueCount/totalCount*100) : null);
+    [['Open PO amount', money(totalAmount)], ['Open PO count', fNumber.format(totalCount)], ['Share with no due date', pct1(share)]].forEach(function(pair){
+      var row = el('div','wc-summary-line');
+      row.appendChild(Object.assign(el('span','l'), {textContent: pair[0]}));
+      row.appendChild(Object.assign(el('span','v'), {textContent: pair[1]}));
+      host.appendChild(row);
+    });
+  });
+}
+function renderItemCost(){
+  var rows = asArray(RAW.item_cost);
+  var flagged = rows.filter(function(r){ return r.in_netsuite === false; });
+  document.getElementById('item-cost-sub').textContent = rows.length
+    ? (fNumber.format(rows.length) + ' SKUs' + (flagged.length ? ', ' + fNumber.format(flagged.length) + ' not in NetSuite' : ''))
+    : '';
+  renderGuarded('item-cost-table', rows, 'Item cost', function(host){
+    var unflagged = rows.filter(function(r){ return r.in_netsuite !== false; }).sort(function(a,b){ return String(a.sku||'').localeCompare(String(b.sku||'')); });
+    var CAP = 200;
+    var remaining = Math.max(0, CAP - flagged.length);
+    var shown = flagged.concat(unflagged.slice(0, remaining));
+    var t = el('table','data-table');
+    var thead=el('thead'); var htr=el('tr');
+    ['SKU','Avg cost','Last purchase price','As of','In NetSuite'].forEach(function(h){ var th=el('th'); th.textContent=h; htr.appendChild(th); });
+    thead.appendChild(htr); t.appendChild(thead);
+    var tbody = el('tbody');
+    shown.forEach(function(r){
+      var tr = el('tr');
+      tr.appendChild(Object.assign(el('td'),{textContent:r.sku||r.item_id||''}));
+      tr.appendChild(Object.assign(el('td'),{textContent:moneyCents(r.average_cost)}));
+      tr.appendChild(Object.assign(el('td'),{textContent:moneyCents(r.last_purchase_price)}));
+      tr.appendChild(Object.assign(el('td'),{textContent:r.asof_date||''}));
+      var tdFlag = el('td');
+      if (r.in_netsuite === false){ tdFlag.textContent = 'No'; tdFlag.className = 'neg-onhand'; }
+      else { tdFlag.textContent = 'Yes'; }
+      tr.appendChild(tdFlag);
+      tbody.appendChild(tr);
+    });
+    t.appendChild(tbody);
+    host.appendChild(t);
+    if (rows.length > shown.length){
+      var note = el('p','card-sub'); note.style.marginTop='8px';
+      note.textContent = 'Showing ' + shown.length + ' of ' + rows.length + ' SKUs (all flagged rows shown, remainder capped).';
+      host.appendChild(note);
+    }
+  });
+}
+function renderWorkingCapital(){
+  try { renderArApAging(); } catch(e){ if (window.console && console.error) console.error('[dashboard] AR/AP aging', e); }
+  try { renderOpenOrders(); } catch(e){ if (window.console && console.error) console.error('[dashboard] Open orders', e); }
+  try { renderItemCost(); } catch(e){ if (window.console && console.error) console.error('[dashboard] Item cost', e); }
+}
+
+/* ---- Demand vs actuals ---- */
+var DEMAND_TABLE_TOP_N = 20;
+function renderDemand(){
+  var dva = RAW.demand_vs_actual || {};
+  var rows = asArray(dva.plan_vs_actual);
+  var coverage = asArray(dva.cost_coverage);
+  var anyPlan = rows.some(function(r){ return (r.plan_units||0) !== 0; });
+
+  /* Trend: total plan vs actual units per month, across every SKU. */
+  var legend = document.getElementById('demand-legend');
+  legend.innerHTML = '';
+  [['Actual units','var(--ink)'], ['Plan units (dashed)','var(--muted)']].forEach(function(pair){
+    var item = el('span','legend-item legend-static');
+    var sw = el('span','legend-line-swatch'); sw.style.background = pair[1];
+    item.appendChild(sw);
+    var txt = el('span'); txt.textContent = pair[0]; item.appendChild(txt);
+    legend.appendChild(item);
+  });
+  document.getElementById('demand-chart-sub').textContent = anyPlan
+    ? 'Trailing months, all SKUs summed'
+    : 'Trailing months, all SKUs summed; no demand plan captured this run, plan shown as 0';
+  renderGuarded('demand-chart', rows, 'Demand vs actuals', function(host){
+    var byYm = {};
+    rows.forEach(function(r){
+      var b = byYm[r.ym] || (byYm[r.ym] = {plan:0, actual:0});
+      b.plan += r.plan_units||0; b.actual += r.actual_units||0;
+    });
+    var months = Object.keys(byYm).sort();
+    if (months.length < 2){ amazonPlaceholder(host, 'info', 'Not enough months for a trend.'); return; }
+    host.appendChild(buildDualLineChart(months, [
+      {label:'Actual units', values: months.map(function(m){ return byYm[m].actual; }), colorRef:'var(--ink)', dashed:false},
+      {label:'Plan units', values: months.map(function(m){ return byYm[m].plan; }), colorRef:'var(--muted)', dashed:true}
+    ], 'Plan versus actual units by month, all SKUs', units));
+  });
+
+  /* Table: latest month, top SKUs by actual units. */
+  var latest = rows.length ? latestYmInfo(rows, 'ym', false) : null;
+  document.getElementById('demand-table-sub').textContent = rows.length
+    ? (monthYearLabel(latest.ym) + ', top ' + DEMAND_TABLE_TOP_N + ' SKUs by actual units')
+    : '';
+  renderGuarded('demand-table', rows, 'Demand vs actuals', function(host){
+    var forYm = rows.filter(function(r){ return r.ym === latest.ym; }).sort(function(a,b){ return (b.actual_units||0)-(a.actual_units||0); });
+    var shown = forYm.slice(0, DEMAND_TABLE_TOP_N);
+    var rest = forYm.slice(DEMAND_TABLE_TOP_N);
+    var t = el('table','data-table');
+    var thead = el('thead'); var htr = el('tr');
+    ['SKU','Plan units','Actual units','Variance','Variance %','Actual $'].forEach(function(h){ var th=el('th'); th.textContent=h; htr.appendChild(th); });
+    thead.appendChild(htr); t.appendChild(thead);
+    var tbody = el('tbody');
+    shown.forEach(function(r){
+      var tr = el('tr');
+      tr.appendChild(Object.assign(el('td'), {textContent: r.sku || ''}));
+      tr.appendChild(Object.assign(el('td'), {textContent: units(r.plan_units)}));
+      tr.appendChild(Object.assign(el('td'), {textContent: units(r.actual_units)}));
+      tr.appendChild(Object.assign(el('td'), {textContent: (r.variance_units>0 ? '+' : '') + units(r.variance_units)}));
+      tr.appendChild(Object.assign(el('td'), {textContent: r.variance_pct != null ? signedPct1(r.variance_pct) : 'n/a'}));
+      tr.appendChild(Object.assign(el('td'), {textContent: moneyCents(r.actual_dollars)}));
+      tbody.appendChild(tr);
+    });
+    var sumPlan=0, sumActual=0, sumVar=0, sumDollars=0;
+    forYm.forEach(function(r){ sumPlan+=(r.plan_units||0); sumActual+=(r.actual_units||0); sumVar+=(r.variance_units||0); sumDollars+=(r.actual_dollars||0); });
+    var trT = el('tr','total-row');
+    trT.appendChild(Object.assign(el('td'), {textContent: 'Total, all ' + forYm.length + ' SKUs'}));
+    trT.appendChild(Object.assign(el('td'), {textContent: units(sumPlan)}));
+    trT.appendChild(Object.assign(el('td'), {textContent: units(sumActual)}));
+    trT.appendChild(Object.assign(el('td'), {textContent: (sumVar>0 ? '+' : '') + units(sumVar)}));
+    trT.appendChild(el('td'));
+    trT.appendChild(Object.assign(el('td'), {textContent: moneyCents(sumDollars)}));
+    tbody.appendChild(trT);
+    t.appendChild(tbody);
+    host.appendChild(t);
+    if (rest.length){
+      var restUnits = rest.reduce(function(s,r){ return s + (r.actual_units||0); }, 0);
+      var note = el('p','concentration-note');
+      note.textContent = 'Showing top ' + DEMAND_TABLE_TOP_N + ' of ' + forYm.length + ' SKUs by actual units; remaining ' + rest.length + ' SKUs total ' + units(restUnits) + ' units.';
+      host.appendChild(note);
+    }
+  });
+
+  /* Cost coverage: SKUs carrying a demand plan, joined to item cost. Empty (no plan
+     captured yet) renders the standard renderGuarded "not available" note. */
+  document.getElementById('demand-cost-sub').textContent = coverage.length
+    ? (coverage.length + ' SKUs with a captured demand plan')
+    : '';
+  renderGuarded('demand-cost-table', coverage, 'Cost coverage', function(host){
+    var sorted = coverage.slice().sort(function(a,b){ return (b.total_plan_units||0)-(a.total_plan_units||0); });
+    var t = el('table','data-table');
+    var thead = el('thead'); var htr = el('tr');
+    ['SKU','In NetSuite','Avg cost','Last PO price','Unit price','Plan units'].forEach(function(h){ var th=el('th'); th.textContent=h; htr.appendChild(th); });
+    thead.appendChild(htr); t.appendChild(thead);
+    var tbody = el('tbody');
+    sorted.forEach(function(r){
+      var tr = el('tr');
+      tr.appendChild(Object.assign(el('td'), {textContent: r.sku || ''}));
+      tr.appendChild(Object.assign(el('td'), {textContent: r.in_netsuite ? 'Yes' : 'No'}));
+      var costCell = el('td');
+      if (r.cost_missing){
+        costCell.className = 'na-cell';
+        costCell.innerHTML = icon('warn', 11);
+        var costTxt = document.createElement('span'); costTxt.style.marginLeft='4px'; costTxt.textContent = 'missing'; costCell.appendChild(costTxt);
+      } else {
+        costCell.textContent = moneyCents(r.average_cost);
+      }
+      tr.appendChild(costCell);
+      tr.appendChild(Object.assign(el('td'), {textContent: r.last_purchase_price != null ? moneyCents(r.last_purchase_price) : 'n/a'}));
+      tr.appendChild(Object.assign(el('td'), {textContent: r.unit_price != null ? moneyCents(r.unit_price) : 'n/a'}));
+      tr.appendChild(Object.assign(el('td'), {textContent: units(r.total_plan_units)}));
+      tbody.appendChild(tr);
+    });
+    t.appendChild(tbody);
+    host.appendChild(t);
+  });
+}
+
+/* ============================================================
+   17. RENDER: FOOTER
+   ============================================================ */
+var CHECK_LABELS = {
+  a_channel_foot: 'Channel totals foot to the unsegmented total',
+  b_inventory_tie: 'Inventory location sum ties to item-header value',
+  c_rows_present: 'Every data section returned rows',
+  d_fresh: 'Data pulled within 26 hours of render',
+  e_asof: 'As-of date matches the run date',
+  f_picklist_stable: 'Channel and region picklists unchanged since the prior run',
+  g_closed_months_stable: 'Closed months unchanged since the prior run',
+  t5_bom_rule: 'Kit / bill-of-materials item-line rule applied'
+};
+var CHECK_ORDER = ['a_channel_foot','b_inventory_tie','c_rows_present','d_fresh','e_asof','f_picklist_stable','g_closed_months_stable','t5_bom_rule'];
+
+function renderFooter(){
+  var host = document.getElementById('app-footer');
+  host.innerHTML = '';
+
+  var checks = META.checks;
+  var allPass = checks ? checks.all_pass : (RAW.self_check ? RAW.self_check.pass : null);
+  var badge = el('div','self-check-badge ' + (allPass ? 'pass' : 'fail'));
+  badge.innerHTML = icon(allPass ? 'check' : 'warn', 15);
+  var badgeTxt = document.createElement('span');
+  badgeTxt.textContent = allPass ? 'Data checks passed' : 'Data checks failed';
+  badge.appendChild(badgeTxt);
+
+  var grid = el('div','footer-grid');
+
+  var left = el('div');
+  var h4a = el('h4'); h4a.textContent = 'Data notes'; left.appendChild(h4a);
+  var p1 = el('p');
+  p1.appendChild(document.createTextNode('Source: NetSuite production account ' + META.source_account + '. Pulled ' + formatMtIso(META.pulled_at_mt) + '. '));
+  left.appendChild(p1);
+
+  var p2 = el('p'); p2.appendChild(badge);
+  left.appendChild(p2);
+
+  if (checks){
+    var ul = el('ul');
+    CHECK_ORDER.forEach(function(k){
+      var c = checks[k]; if (!c) return;
+      var li = el('li');
+      var mark = document.createElement('span'); mark.className = c.pass ? 'check-pass' : 'check-fail'; mark.textContent = c.pass ? 'Pass' : 'Fail';
+      li.appendChild(mark);
+      li.appendChild(document.createTextNode(' - ' + (CHECK_LABELS[k] || k) + (c.detail ? ': ' + c.detail : '')));
+      ul.appendChild(li);
+    });
+    left.appendChild(ul);
+  } else if (RAW.self_check){
+    var sc = RAW.self_check;
+    var p2b = el('p');
+    p2b.textContent = 'Channel-summed total equals the independently queried unsegmented total; MTD diff ' + moneyCents(sc.diff) + ', YTD diff ' + moneyCents(sc.ytd_diff) + '.';
+    left.appendChild(p2b);
+  }
+
+  var p3 = el('p');
+  p3.textContent = 'Figures tie to the general ledger at line grain. The company-total figures on this page (KPI row margins and the channel-table total) reconcile to the native Income Statement only within the documented foreign-currency re-translation delta on COGS; the channel, SKU and region cuts underneath are not expected to tie to that native report, which carries no segment grain.';
+  left.appendChild(p3);
+
+  var azStatus = RAW.amazon_orders ? RAW.amazon_orders.status : null;
+  var p3b = el('p');
+  p3b.textContent = azStatus
+    ? ('Amazon marketplace pull: ' + azStatus + '. NetSuite-sourced Amazon revenue elsewhere on this page is independent of this status.')
+    : 'Amazon marketplace section (order count, AOV, non-NetSuite marketplace SKUs) requires the newer extract format and is not present in this data pull.';
+  left.appendChild(p3b);
+
+  if ((META.known_artifacts||[]).length){
+    var p4 = el('p');
+    META.known_artifacts.forEach(function(a){
+      p4.appendChild(document.createTextNode('Known artifact: consolidated Amazon ship-day ' + a.ship_day + ' double-counts ' + a.records.length + ' legacy invoices (' + moneyCents(a.total) + '), scheduled for deletion ' + a.scheduled_deletion + '. Not adjusted in this pull.'));
+    });
+    left.appendChild(p4);
+  }
+  grid.appendChild(left);
+
+  var right = el('div');
+  var h4b = el('h4'); h4b.textContent = 'How to read this page'; right.appendChild(h4b);
+  var ul2 = el('ul');
+  var wholesaleIdsText = WHOLESALE_GROUP ? WHOLESALE_GROUP.channel_ids.length + ' channel' + (WHOLESALE_GROUP.channel_ids.length===1?'':'s') : 'several channels';
+  [
+    'Channel roll-up (per finance team decision): ' + GROUPS.map(function(g){ return g.label; }).join(', ') + ', plus Unassigned for any transaction with no channel tag. Roll-up membership is configuration, not code, and can change if the roll-up needs to.',
+    'Any channel marked with a caution icon in the margin column carries a margin that is not economically meaningful as currently coded; the flag text explains why. That channel is still included in its own revenue and GP totals.',
+    'The margin percentages in the top KPI row are company-total figures across every channel, including any flagged channel; they are not the same base as the per-channel margins in the table below.',
+    'Spikeball.com region: US shown alone; the remaining regions roll into Other, listed individually under the Other row in the channel drill. Any revenue tagged to a reseller-coded region is shown as its own flag, never folded into Other.',
+    'MTD and YTD run through the as-of date in the header and are provisional for the open month; Amazon settlement lag and COGS reclassification can restate MTD figures after month-end close.',
+    'Kit-type SKUs show "kit: see components" instead of an on-hand figure; NetSuite carries no on-hand record for kits.',
+    'Top-5 concentration is share of SKU-line sales (item lines with a matching revenue accounting line), not share of the channel revenue shown in the KPI tiles or channel table; the two bases differ because SKU-line sales exclude shipping and other non-item revenue lines.',
+    'Period selector: MTD and YTD drive the channel table, the orders/AOV table, the top-SKU cards and the returns table. "13 months" keeps the last MTD/YTD selection for those views and highlights the trend chart instead, since there is no distinct 13-month total.',
+    'Out-of-stock severity thresholds (good/warning/serious/critical) are this page\'s own bands, not an external target.'
+  ].forEach(function(t){ var li=el('li'); li.textContent=t; ul2.appendChild(li); });
+  right.appendChild(ul2);
+  grid.appendChild(right);
+
+  host.appendChild(grid);
+
+  var fn = el('div','footer-note');
+  fn.textContent = 'Figures are pulled directly from NetSuite production data, not placeholders; sections without data for this pull (Amazon marketplaces when not completed, orders and AOV when the underlying data is unavailable) are labeled rather than shown empty.';
+  host.appendChild(fn);
+}
+
+/* ============================================================
+   17b. SECTION NAV: sticky anchor bar + scrollspy. Deliberately
+   independent of the hash router below -- it never reads or writes
+   location.hash, so clicking a nav link cannot reset the current
+   period/channel/sku selection.
+   ============================================================ */
+var SECTION_NAV_TARGETS = [
+  ['overview-section', 'Overview'],
+  ['channel-section', 'Sales by channel'],
+  ['ebitda-section', 'EBITDA'],
+  ['pnl-account-section', 'P&L by account'],
+  ['balance-sheet-section', 'Balance sheet'],
+  ['cashflow-section', 'Cash flow'],
+  ['working-capital-section', 'Working capital'],
+  ['demand-section', 'Demand']
+];
+function initSectionNav(){
+  var nav = document.getElementById('section-nav');
+  var inner = document.getElementById('section-nav-inner');
+  if (!nav || !inner) return;
+  var links = [];
+  SECTION_NAV_TARGETS.forEach(function(pair){
+    var id = pair[0], label = pair[1];
+    var target = document.getElementById(id);
+    if (!target) return;
+    var btn = el('button','section-nav-link');
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.addEventListener('click', function(){ scrollToSection(target); });
+    inner.appendChild(btn);
+    links.push({id:id, target:target, btn:btn});
+  });
+  if (!links.length){ nav.hidden = true; return; }
+  nav.hidden = false;
+
+  function scrollToSection(target){
+    var top = target.getBoundingClientRect().top + window.pageYOffset - nav.getBoundingClientRect().height - 14;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({top: Math.max(0, top), behavior: reduce ? 'auto' : 'smooth'});
+  }
+
+  var ticking = false, lastActiveId = null;
+  function updateActive(){
+    ticking = false;
+    var threshold = nav.getBoundingClientRect().height + 24;
+    var current = links[0];
+    for (var i = 0; i < links.length; i++){
+      if (links[i].target.getBoundingClientRect().top - threshold <= 0) current = links[i];
+    }
+    if (current.id === lastActiveId) return;
+    lastActiveId = current.id;
+    links.forEach(function(l){ l.btn.setAttribute('aria-current', l.id === current.id ? 'true' : 'false'); });
+    current.btn.scrollIntoView({inline:'nearest', block:'nearest'});
+  }
+  window.addEventListener('scroll', function(){ if (!ticking){ ticking = true; window.requestAnimationFrame(updateActive); } }, {passive:true});
+  window.addEventListener('resize', function(){ if (!ticking){ ticking = true; window.requestAnimationFrame(updateActive); } });
+  updateActive();
+}
+
+/* ============================================================
+   18. HASH ROUTING
+   ============================================================ */
+function parseHash(){
+  var h = location.hash.replace(/^#/, '');
+  var params = {};
+  h.split('&').forEach(function(pair){
+    if (!pair) return;
+    var idx = pair.indexOf('=');
+    if (idx === -1) return;
+    params[decodeURIComponent(pair.slice(0,idx))] = decodeURIComponent(pair.slice(idx+1));
+  });
+  return params;
+}
+function writeHash(params){
+  var parts = [];
+  ['period','channel','sku','account','kpi'].forEach(function(k){
+    if (params[k]) parts.push(k+'='+encodeURIComponent(params[k]));
+  });
+  var newHash = '#' + parts.join('&');
+  if (location.hash !== newHash) history.pushState(null, '', newHash || '#');
+}
+
+var state = {period:'mtd', channel:null, sku:null, account:null, kpi:null};
+
+/* Scrolls a just-opened drill panel into view. Called only from the setters
+   below (user-initiated open), never from render*Drill itself, so a page
+   load that arrives with a drill already encoded in the hash does not
+   auto-scroll. Double rAF (rather than firing right after renderRoute())
+   waits for a real layout+paint pass first, so the measurement driving
+   scrollIntoView reflects final geometry even if something in that same
+   render pass (fonts swapping in, a chart's viewBox settling its rendered
+   height) still shifts layout on the frame right after the synchronous
+   render call returns. */
+function scrollDrillIntoView(panelId){
+  var panel = document.getElementById(panelId);
+  if (!panel || panel.hidden) return;
+  // Direct call, NO requestAnimationFrame, and default 'auto' not 'smooth'. Two failure modes
+  // this avoids: rAF is PAUSED in a hidden/backgrounded tab so an rAF-gated scroll silently never
+  // fires there; and a smooth scrollIntoView is itself a silent no-op in some embeddings.
+  // scrollIntoView forces a synchronous layout, so a plain direct call lands the panel correctly
+  // right after renderRoute() rebuilds the DOM, in every context. The drill charts are fixed-size
+  // inline SVG, so there is no late height settling to wait a paint frame for.
+  panel.scrollIntoView({block:'nearest'});
+}
+
+function setChannel(key){
+  state.channel = key;
+  writeHash(state);
+  renderRoute();
+  if (key) scrollDrillIntoView('channel-drill');
+}
+function setSku(sku){
+  state.sku = sku;
+  writeHash(state);
+  renderRoute();
+  if (sku) scrollDrillIntoView('sku-drill');
+}
+function setPeriod(p){
+  state.period = p;
+  writeHash(state);
+  renderRoute();
+}
+function setAccount(accountId){
+  state.account = accountId;
+  writeHash(state);
+  renderRoute();
+  if (accountId) scrollDrillIntoView('pnl-account-drill');
+}
+function setKpi(key){
+  state.kpi = key;
+  writeHash(state);
+  renderRoute();
+  if (key) scrollDrillIntoView('kpi-drill');
+}
+
+function tablePeriod(){ return state.period === 'ytd' ? 'ytd' : 'mtd'; }
+
+function renderRoute(){
+  document.querySelectorAll('.period-btn').forEach(function(b){
+    b.setAttribute('aria-pressed', b.getAttribute('data-period') === state.period ? 'true' : 'false');
+  });
+  highlightKpiTiles(state.period);
+  var trendCard = document.querySelector('#channel-section .chart-card');
+  if (trendCard) trendCard.classList.toggle('is-focused', state.period === '13m');
+
+  var tp = tablePeriod();
+  renderChannelTable(tp);
+  renderOrdersAov(tp);
+  renderChannelDrill(state.channel, tp);
+  renderMovingSection(tp);
+  renderSkuDrill(state.sku, tp);
+  renderPnlAccountDrill(state.account);
+  renderKpiDrill(state.kpi);
+}
+
+function loadFromHash(){
+  var p = parseHash();
+  state.period = (p.period === 'ytd' || p.period === '13m') ? p.period : 'mtd';
+  state.channel = ROLLUP_ORDER.indexOf(p.channel) !== -1 ? p.channel : null;
+  state.sku = p.sku || null;
+  state.account = (p.account && asArray(RAW.pnl_by_account_month).some(function(r){ return String(r.account_id) === p.account; })) ? p.account : null;
+  state.kpi = (p.kpi && KPI_DRILL_META.hasOwnProperty(p.kpi)) ? p.kpi : null;
+}
+
+window.addEventListener('popstate', function(){ loadFromHash(); renderRoute(); });
+window.addEventListener('hashchange', function(){ loadFromHash(); renderRoute(); });
+
+/* ============================================================
+   19. INIT
+   ============================================================ */
+function renderFreshnessPill(){
+  var pulledAt = META.pulled_at_mt;
+  var ageHours = pulledAt ? (Date.now() - new Date(pulledAt).getTime()) / 3600000 : null;
+  var stale = ageHours != null && isFinite(ageHours) && ageHours > 26;
+  var dot = document.getElementById('freshness-dot');
+  if (dot) dot.className = 'freshness-dot ' + (pulledAt ? (stale ? 'stale' : 'fresh') : '');
+  var periodNote = META.period_rule === 'through_yesterday_close' ? 'through yesterday\'s close' : 'provisional, through today';
+  var label = document.getElementById('asof-label');
+  if (label) label.textContent = 'As of ' + formatDateLong(META.asof_date) + ' (MT), ' + periodNote;
+  var refreshBtn = document.getElementById('refresh-btn');
+  if (refreshBtn){
+    refreshBtn.innerHTML = icon('refresh', 13) + '<span>Refresh</span>';
+    refreshBtn.addEventListener('click', function(){ location.reload(); });
+  }
+}
+
+function init(){
+  injectRollupStyles();
+  initThemeToggle();
+  renderStaleBanner();
+  renderFreshnessPill();
+
+  document.querySelectorAll('.period-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){ setPeriod(btn.getAttribute('data-period')); });
+  });
+
+  renderKpiRow();
+  renderChannelTrend();
+  renderInventory();
+  renderAmazon();
+  renderReturns();
+
+  try { renderEbitda(); } catch(e){ if (window.console && console.error) console.error('[dashboard] EBITDA section', e); }
+  try { renderPnlByAccount(); } catch(e){ if (window.console && console.error) console.error('[dashboard] P&L by account section', e); }
+  try { renderChannelGrossNet(); } catch(e){ if (window.console && console.error) console.error('[dashboard] Gross/net by channel section', e); }
+  try { renderBalanceSheet(); } catch(e){ if (window.console && console.error) console.error('[dashboard] Balance sheet section', e); }
+  try { renderCashFlow(); } catch(e){ if (window.console && console.error) console.error('[dashboard] Cash flow section', e); }
+  try { renderWorkingCapital(); } catch(e){ if (window.console && console.error) console.error('[dashboard] Working capital section', e); }
+  try { renderDemand(); } catch(e){ if (window.console && console.error) console.error('[dashboard] Demand vs actuals section', e); }
+
+  renderFooter();
+
+  loadFromHash();
+  renderRoute();
+
+  initSectionNav();
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+else init();
+
+})();
+</script>
+</body>
+</html>

@@ -39,27 +39,34 @@ This routine runs on cron `0 0,10,13-23 * * *` UTC -- during MDT: hourly from 07
 during MST: one hour earlier than each of those, hourly 06:00 through 17:00 MT, plus 03:00 MT. Most of those
 hourly checks find nothing to do and exit without touching the Sheet, BigQuery, or the page; a full refresh
 happens at the nightly hour, after an on-demand request, or after a 20-hour gap since the last success. Its
-nightly run sits at 04:00 MT (MDT) rather than 03:00 MT, one hour apart from the routine above, so the two
-never write the same Sheet, BigQuery dataset, or Drive state file in the same hour. See `CUTOVER.md` for
-retiring the routine above and moving this one's nightly run to its final hour.
+nightly run sits at 03:00 MST / 04:00 MDT rather than 02:00 MST / 03:00 MDT, one hour later than the routine
+above, so the two never write the same Sheet, BigQuery dataset, or Drive state file in the same hour. See
+`CUTOVER.md` for retiring the routine above and moving this one's nightly run to its final hour.
 
 The on-demand request: clicking "Request data refresh" on this routine's page writes a row to the
 `refresh_requests` tab on the Sheet (columns: `requested_at_utc`, `requested_at_mt`, `source`,
 `user_agent`, `status`). The next hourly check (07:00 through 18:00 MT during MDT) honors it and rewrites that row's
 `status` to `honored <timestamp>`. A request made outside that window, or within 10 minutes of the last
 one, waits for the next check or shows a message that one is already queued rather than adding a second
-row. `run_log` gains two columns for this routine's runs: `trigger` (`nightly` or `request`) and
-`request_row` (which `refresh_requests` row number(s) a request-triggered run honored, blank otherwise).
+row. A queued row older than the routine's last successful run is marked `superseded <timestamp>` instead
+of `honored <timestamp>` the next time the gate runs, since a more recent successful pull already covers
+it. `run_log` gains two columns for this routine's runs: `trigger` (`nightly` or `request`) and
+`request_row` (which `refresh_requests` row number(s) a request-triggered run honored or superseded, blank
+otherwise). The Sheet's `run_log` and `refresh_requests` tabs are the day-to-day health check for this
+routine -- they show what actually happened on every run, not just how long a session took.
 
-### Environment variables (no secrets manager)
+### Environment variables and where the code runs from
 
-The gated routine reads every credential it needs -- NetSuite, Google, and Amazon -- directly from
-environment variables set on its own Claude Code cloud environment; there is no separate secrets service
-in the path. That same environment carries `SPIKEBALL_DASH_FEATURES=range_selector,refresh_control` (turns
-the two controls above on for this routine's page only) and `SPIKEBALL_NIGHTLY_SLOT_UTC` (the UTC hour this
-routine treats as its guaranteed nightly run; see `CUTOVER.md` for changing it). The routine above's
-environment does not set `SPIKEBALL_DASH_FEATURES`, so its page stays exactly as it is today even though
-both routines download the same code.
+The gated routine runs from a checkout of this project's GitHub repository, attached to its cloud
+environment as a repository source; there is no code to download and nothing to publish separately. Every
+credential the routine needs -- NetSuite, Google, and Amazon -- is a plain environment variable set on that
+same cloud environment; there is no secrets manager or separate secrets service anywhere in the path. That
+environment carries `SPIKEBALL_DASH_FEATURES=range_selector,refresh_control` (turns the two controls above
+on for this routine's page only) and `SPIKEBALL_NIGHTLY_SLOT_UTC` (the UTC hour this routine treats as its
+guaranteed nightly run; see `CUTOVER.md` for changing it). The routine above's environment does not set
+`SPIKEBALL_DASH_FEATURES`, so its page stays exactly as it is today even though both routines run the same
+code. The commands this routine's prompt runs are declared as allowed in the repository's own
+`.claude/settings.json`, loaded automatically when the routine's session starts.
 
 ### Cutover note
 
@@ -108,24 +115,27 @@ place, and emails the alert address.
   the right group; nothing else changes.
 - Amazon AOV: the Orders API infrastructure is built and dormant. Set `features.amazon_aov` to true in
   `spike/config/rollups.json` to show the Amazon order count and AOV tiles.
-- Alert address: `SPIKEBALL_ALERT_TO` in the secrets store (currently the owner). Cutting over to
-  Casandra is a one-value change.
-- Google access: the refresh runs as mcohen@spikeball.com through a one-time consent. If that account's
+- Alert address: `SPIKEBALL_ALERT_TO`, an environment variable on the gated routine's cloud environment
+  (currently `casandra@spikeball.com`).
+- Google access: the gated routine's refresh runs as mcohen@spikeball.com through a one-time consent, for
+  now (see `handoff/RUNBOOK-google-identity.md` for moving this to Casandra later). If that account's
   password or security settings change and the token is revoked, re-run `spike/routine/google_consent.py`
   and approve once.
 
 ## Deploying a code change
 
-Before bundling, run the sandbox import guard so a local-only dependency (like openpyxl) can
+Before opening a pull request, run the sandbox import guard so a local-only dependency (like openpyxl) can
 never crash the nightly again: `python spike/routine/sandbox_import_check.py` (must print
-SANDBOX_IMPORT_OK). Then the nightly routine downloads the code as a zip bundle from mcohen@spikeball.com's Google Drive (it does
-not clone from GitHub). After any change to the code, run from the project root:
-`python spike/routine/publish_bundle.py` (with the secrets store available). The file id is stable; the
-routine picks up the new bundle on its next run.
+SANDBOX_IMPORT_OK). The gated routine runs from a checkout of this project's GitHub repository, attached to
+its cloud environment as a repository source -- it does not download a bundle and there is nothing to
+publish separately. A code change takes effect once it's merged to the repository's default branch: the
+routine's next session starts from a fresh checkout of that branch automatically, on its own schedule,
+with no manual step in between.
 
 ## Manual refresh
 
-From the code repository root, with the secrets store token available:
+From a checkout of the repository, with this environment's variables loaded (they are plain environment
+variables, not a secrets service, so any shell that has them exported works):
 `python spike/routine/run_nightly.py` (prints `NIGHTLY_OK` or `NIGHTLY_FAIL <reason>`), then republish
 `design/mockup/dashboard.artifact.html` to the artifact URL above. `--skip-amazon` skips the Amazon
 Orders API leg; `--diagnose` only tests network reachability.
@@ -145,14 +155,16 @@ Where they appear: the Google Sheet (one tab per section) and BigQuery (one tabl
 section) refresh every night with the rest. The Looker report gains a page per section once its charts are
 placed. The dashboard page (Artifact) shows all six, labeled actual-only.
 
-Balance sheet accuracy (important): the balance sheet is built by anchoring to a trusted month-end and
-rolling forward by the month's ledger activity, because a raw ledger sum does not reproduce this company's
-bank balances (processor and line-of-credit accounts; see the reconciliation note). Closed months are exact
-when the anchor is the latest close. The current open month is labeled "provisional" and can drift by the
-timing items on the Byline and Highbeam accounts until the anchor is refreshed. To refresh the anchor: run
-the NetSuite Balance Sheet report (cr=-202) at month close and save its balances as the new anchor
-(`spike/config/bs_anchor.json`); today the anchor is bootstrapped from the June workbook, so the balance
-sheet is exact through June and provisional after. This needs one NetSuite UI session with the owner's 2FA.
+Balance sheet accuracy (important, updated 2026-08-28): the balance sheet is built from a nightly snapshot
+of NetSuite's own native account balances, pulled over the API (`spike/extract_v2_bs_snapshot.py`) -- the
+same read-only credentials the rest of the pipeline already uses. It does not need a NetSuite browser
+session, a manual report pull, or anyone's two-factor login; nothing about refreshing this section requires
+a human to sign in anywhere. An earlier version of this dashboard anchored to a trusted month-end and
+rolled forward by ledger activity because a raw ledger sum did not reproduce this company's bank balances
+(processor and line-of-credit accounts); that method is retired for months the snapshot method covers, and
+is kept only for months before snapshotting began. Closed months tie to the cent against the CFO's own
+workbook, the same as the other v2 sections; the current open month can still move as new postings land,
+the same as every other open-month figure on this dashboard.
 
 Cash flow note: the statement always foots to the actual bank movement. Shareholder distributions and other
 non-earnings equity movements, which the CFO's own workbook method does not itemize, appear on one

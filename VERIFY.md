@@ -38,6 +38,12 @@ Open the dashboard url.
 - Wait for the next hourly check (07:00 through 18:00 MT during MDT) or the nightly run, then reload
   the Sheet. That row's `status` should now read `honored <timestamp>`, and the
   dashboard's as-of pill should show a newer pull time after you reload the page.
+- If you queue a second request before the first one is honored, or a request sits
+  queued longer than one nightly cycle, expect its `status` to read
+  `superseded <timestamp>` instead of `honored <timestamp>` the next time a run
+  fires -- that means a later successful pull already covers what that row was asking
+  for, so the gate marks it superseded rather than pulling again for no reason. This is
+  correct behavior, not a stuck request.
 
 ## 3. The run log
 
@@ -55,12 +61,17 @@ skip does not write a row at all, by design). For a run that did refresh:
 ## 4. The routine's own run history
 
 At claude.ai/code/routines, open the `Spikeball Finance refresh` routine and look at
-its recent runs. Most should end quickly with `NIGHTLY_SKIP <reason>` in the log --
-that's the routine correctly deciding there's nothing to do at that hour. A run that
-actually refreshes takes longer (NetSuite alone takes roughly 10 minutes) and should
-end with one of the verdicts above, never with an unhandled error. If a run's log ends
-with `ENV_MISSING`, `ENV_BLOCKED`, or `NIGHTLY_FAIL`, see `OPERATIONS.md`'s "When
-something looks wrong" section.
+its recent runs. Most should end quickly (well under two minutes) with
+`NIGHTLY_SKIP <reason>` in the log -- that's the routine correctly deciding there's
+nothing to do at that hour, not a failure; a fast run outside the nightly slot with no
+newer queued request is the expected, normal outcome for most of the routine's
+sessions each day. A run that actually refreshes takes longer (NetSuite alone takes
+roughly 10 minutes) and should end with one of the verdicts above, never with an
+unhandled error. If a run's log ends with `ENV_MISSING`, `ENV_BLOCKED`,
+`CHECKOUT_MISSING`, or `NIGHTLY_FAIL`, see `OPERATIONS.md`'s "When something looks
+wrong" section. The Sheet's `run_log` and `refresh_requests` tabs (sections 2 and 3
+above) are the programmatic health check for this dashboard -- treat them as more
+authoritative than how long any one session took to finish.
 
 ## One artifact, not two
 

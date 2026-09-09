@@ -1,0 +1,257 @@
+{
+  "generated_by": "spike/parity/cash_flow_parity.py",
+  "target_workbook": "inputs/cfo-july-financials-forecast-2026-08-27.xlsx",
+  "validated_against": "Cash Flow Statement_2026, June 2026 (single Amount column)",
+  "method": "indirect",
+  "cf_lines": [
+    {
+      "cf_line": "Net Income",
+      "cf_statement_row": 9,
+      "category": "operating",
+      "source": "income_statement_total",
+      "sheet": "IncomeStatement_2026",
+      "row_label_match": "Net Income",
+      "sign_rule": "value_as_reported",
+      "detail": "Not a BS-account sum. Pulled directly from IncomeStatement_2026's 'Net Income' total row for the month. Equivalent to the delta of Balance Sheet_2026's cumulative 'Net Income' row (155), which is how the workbook's own CF formula derives it -- both are proven identical to the cent (measured).",
+      "accounts": []
+    },
+    {
+      "cf_line": "Depreciation & Amortization",
+      "cf_statement_row": 11,
+      "category": "operating",
+      "source": "income_statement_account",
+      "sheet": "IncomeStatement_2026",
+      "acctnumber": "70000000",
+      "sign_rule": "value_as_reported",
+      "detail": "Not a BS-account sum. Pulled directly from IncomeStatement_2026 leaf '70000000 - Depreciation & Amotization' for the month (add-back to Net Income).",
+      "accounts": []
+    },
+    {
+      "cf_line": "Accounts Receivable",
+      "cf_statement_row": 12,
+      "category": "operating",
+      "source": "bs_account_sum",
+      "sign_rule": "negative_of_delta",
+      "accounts": [
+        "10102001",
+        "10102200",
+        "10104000"
+      ]
+    },
+    {
+      "cf_line": "Inventory Asset",
+      "cf_statement_row": 13,
+      "category": "operating",
+      "source": "bs_account_sum",
+      "sign_rule": "negative_of_delta",
+      "accounts": [
+        "10104100",
+        "10104200",
+        "10104300"
+      ]
+    },
+    {
+      "cf_line": "Other Current Asset",
+      "cf_statement_row": 14,
+      "category": "operating",
+      "source": "bs_account_sum",
+      "sign_rule": "negative_of_delta",
+      "accounts": [
+        "10106000",
+        "10106200",
+        "10106300",
+        "10103000",
+        "10105000"
+      ],
+      "no_gl_number_rows": [
+        "GST Paid"
+      ]
+    },
+    {
+      "cf_line": "Accounts Payable",
+      "cf_statement_row": 15,
+      "category": "operating",
+      "source": "bs_account_sum",
+      "sign_rule": "positive_of_delta",
+      "accounts": [
+        "20101000"
+      ]
+    },
+    {
+      "cf_line": "Sales Tax Payable",
+      "cf_statement_row": 16,
+      "category": "operating",
+      "source": "bs_account_sum",
+      "sign_rule": "positive_of_delta",
+      "accounts": [
+        "20113100",
+        "20113101",
+        "20113102"
+      ]
+    },
+    {
+      "cf_line": "Other Current Liabilities",
+      "cf_statement_row": 17,
+      "category": "operating",
+      "source": "bs_account_sum",
+      "sign_rule": "positive_of_delta",
+      "accounts": [
+        "20103001",
+        "20103200",
+        "20102001",
+        "20104000",
+        "20105000",
+        "20106210",
+        "20106220",
+        "20106300",
+        "20106400",
+        "20106035",
+        "20110150",
+        "20112210",
+        "20111000",
+        "20112100",
+        "20112200",
+        "20113200",
+        "20113300",
+        "20114000",
+        "20116000",
+        "20117000",
+        "20118000"
+      ],
+      "no_gl_number_rows": [
+        "VAT on Sales"
+      ]
+    },
+    {
+      "cf_line": "Capital Expenditures",
+      "cf_statement_row": 21,
+      "category": "investing",
+      "source": "bs_account_sum",
+      "sign_rule": "negative_of_delta",
+      "detail": "Gross fixed-asset COST accounts only (additions), not net of depreciation.",
+      "accounts": [
+        "10201100",
+        "10202100",
+        "10202150",
+        "10203100",
+        "10205100",
+        "10206100"
+      ]
+    },
+    {
+      "cf_line": "Long Term Liabilities",
+      "cf_statement_row": 24,
+      "category": "financing",
+      "source": "bs_account_sum",
+      "sign_rule": "positive_of_delta",
+      "accounts": [
+        "201140100",
+        "201170100",
+        "201170105",
+        "201170110",
+        "201170111",
+        "201170115",
+        "201190101"
+      ]
+    }
+  ],
+  "cash_accounts": {
+    "category": "cash_balance_not_an_adjustment",
+    "detail": "Sum of these = Balance Sheet_2026 'Total Bank'. These accounts ARE the cash whose change the CF statement explains (beginning/ending cash, rows 27/28/31) -- they are not an operating/investing/financing adjustment line themselves.",
+    "accounts": [
+      "10101000",
+      "10101100",
+      "10101610",
+      "10101650",
+      "10101700",
+      "10101750"
+    ]
+  },
+  "excluded_accounts": [
+    {
+      "acctnumber": "10201200",
+      "reason": "Accumulated depreciation contra-asset. D&A add-back is sourced from IncomeStatement_2026 (acct 70000000), and Capital Expenditures uses gross cost accounts only -- accumulated depreciation is not an input to the indirect CF statement."
+    },
+    {
+      "acctnumber": "10202200",
+      "reason": "Accumulated depreciation contra-asset. D&A add-back is sourced from IncomeStatement_2026 (acct 70000000), and Capital Expenditures uses gross cost accounts only -- accumulated depreciation is not an input to the indirect CF statement."
+    },
+    {
+      "acctnumber": "10202250",
+      "reason": "Accumulated depreciation contra-asset. D&A add-back is sourced from IncomeStatement_2026 (acct 70000000), and Capital Expenditures uses gross cost accounts only -- accumulated depreciation is not an input to the indirect CF statement."
+    },
+    {
+      "acctnumber": "10205200",
+      "reason": "Accumulated depreciation contra-asset. D&A add-back is sourced from IncomeStatement_2026 (acct 70000000), and Capital Expenditures uses gross cost accounts only -- accumulated depreciation is not an input to the indirect CF statement."
+    },
+    {
+      "acctnumber": "10206200",
+      "reason": "Accumulated depreciation contra-asset. D&A add-back is sourced from IncomeStatement_2026 (acct 70000000), and Capital Expenditures uses gross cost accounts only -- accumulated depreciation is not an input to the indirect CF statement."
+    },
+    {
+      "acctnumber": "30100000",
+      "reason": "Direct-to-equity account (capital stock / shareholder distributions / paid-in capital). The workbook's CF statement captures equity movement ONLY through the Net Income line -- these accounts are not referenced by any CF formula. If real activity posts here independently of net income, this CF statement (and this cf_map) will not surface it as a financing activity. This is a limitation of the workbook's own methodology, not an artifact of this mapping."
+    },
+    {
+      "acctnumber": "30100010",
+      "reason": "Direct-to-equity account (capital stock / shareholder distributions / paid-in capital). The workbook's CF statement captures equity movement ONLY through the Net Income line -- these accounts are not referenced by any CF formula. If real activity posts here independently of net income, this CF statement (and this cf_map) will not surface it as a financing activity. This is a limitation of the workbook's own methodology, not an artifact of this mapping."
+    },
+    {
+      "acctnumber": "30100020",
+      "reason": "Direct-to-equity account (capital stock / shareholder distributions / paid-in capital). The workbook's CF statement captures equity movement ONLY through the Net Income line -- these accounts are not referenced by any CF formula. If real activity posts here independently of net income, this CF statement (and this cf_map) will not surface it as a financing activity. This is a limitation of the workbook's own methodology, not an artifact of this mapping."
+    },
+    {
+      "acctnumber": "30100030",
+      "reason": "Direct-to-equity account (capital stock / shareholder distributions / paid-in capital). The workbook's CF statement captures equity movement ONLY through the Net Income line -- these accounts are not referenced by any CF formula. If real activity posts here independently of net income, this CF statement (and this cf_map) will not surface it as a financing activity. This is a limitation of the workbook's own methodology, not an artifact of this mapping."
+    },
+    {
+      "acctnumber": "30100002",
+      "reason": "Direct-to-equity account (capital stock / shareholder distributions / paid-in capital). The workbook's CF statement captures equity movement ONLY through the Net Income line -- these accounts are not referenced by any CF formula. If real activity posts here independently of net income, this CF statement (and this cf_map) will not surface it as a financing activity. This is a limitation of the workbook's own methodology, not an artifact of this mapping."
+    },
+    {
+      "acctnumber": "30401000",
+      "reason": "Direct-to-equity account (capital stock / shareholder distributions / paid-in capital). The workbook's CF statement captures equity movement ONLY through the Net Income line -- these accounts are not referenced by any CF formula. If real activity posts here independently of net income, this CF statement (and this cf_map) will not surface it as a financing activity. This is a limitation of the workbook's own methodology, not an artifact of this mapping."
+    },
+    {
+      "acctnumber": "30402000",
+      "reason": "Direct-to-equity account (capital stock / shareholder distributions / paid-in capital). The workbook's CF statement captures equity movement ONLY through the Net Income line -- these accounts are not referenced by any CF formula. If real activity posts here independently of net income, this CF statement (and this cf_map) will not surface it as a financing activity. This is a limitation of the workbook's own methodology, not an artifact of this mapping."
+    },
+    {
+      "acctnumber": "30403000",
+      "reason": "Direct-to-equity account (capital stock / shareholder distributions / paid-in capital). The workbook's CF statement captures equity movement ONLY through the Net Income line -- these accounts are not referenced by any CF formula. If real activity posts here independently of net income, this CF statement (and this cf_map) will not surface it as a financing activity. This is a limitation of the workbook's own methodology, not an artifact of this mapping."
+    },
+    {
+      "acctnumber": "30405000",
+      "reason": "Direct-to-equity account (capital stock / shareholder distributions / paid-in capital). The workbook's CF statement captures equity movement ONLY through the Net Income line -- these accounts are not referenced by any CF formula. If real activity posts here independently of net income, this CF statement (and this cf_map) will not surface it as a financing activity. This is a limitation of the workbook's own methodology, not an artifact of this mapping."
+    },
+    {
+      "acctnumber": "30406000",
+      "reason": "Direct-to-equity account (capital stock / shareholder distributions / paid-in capital). The workbook's CF statement captures equity movement ONLY through the Net Income line -- these accounts are not referenced by any CF formula. If real activity posts here independently of net income, this CF statement (and this cf_map) will not surface it as a financing activity. This is a limitation of the workbook's own methodology, not an artifact of this mapping."
+    },
+    {
+      "acctnumber": "30407000",
+      "reason": "Direct-to-equity account (capital stock / shareholder distributions / paid-in capital). The workbook's CF statement captures equity movement ONLY through the Net Income line -- these accounts are not referenced by any CF formula. If real activity posts here independently of net income, this CF statement (and this cf_map) will not surface it as a financing activity. This is a limitation of the workbook's own methodology, not an artifact of this mapping."
+    },
+    {
+      "acctnumber": "30408000",
+      "reason": "Direct-to-equity account (capital stock / shareholder distributions / paid-in capital). The workbook's CF statement captures equity movement ONLY through the Net Income line -- these accounts are not referenced by any CF formula. If real activity posts here independently of net income, this CF statement (and this cf_map) will not surface it as a financing activity. This is a limitation of the workbook's own methodology, not an artifact of this mapping."
+    }
+  ],
+  "unmapped_no_gl_number_rows": [
+    {
+      "label": "GST Paid",
+      "workbook_row": 44,
+      "rolls_into_cf_line": "Other Current Asset",
+      "note": "No GL account number visible in this workbook row (label carries no 'NNNNNNNN - ' prefix). Balance and May->June delta are both 0.00 in this test, so it does not affect the June 2026 tie-out, but it needs a real NetSuite acctnumber identified before the pipeline can key it generically alongside the numbered accounts."
+    },
+    {
+      "label": "VAT on Sales",
+      "workbook_row": 121,
+      "rolls_into_cf_line": "Other Current Liabilities",
+      "note": "No GL account number visible in this workbook row. Balance is -1,905.56 in both May and June 2026 (zero delta), so it does not affect this test, but it carries a real nonzero balance and needs a real NetSuite acctnumber before the pipeline can key it generically -- a future month with a nonzero delta here would otherwise be silently dropped from Other Current Liabilities."
+    }
+  ],
+  "caveats": [
+    "Account number 10104000 appears twice in Balance Sheet_2026 with conflicting labels: row 24 ('10104000 - Other Receivables', value-bearing -- $38,927.62 in both May and June 2026, mapped here to Accounts Receivable) and row 30 ('10104000 - Inventory Asset', a pure header row with no value of its own -- the real Inventory Asset leaves are 10104100 / 10104200 / 10104300). Only the value-bearing row was mapped, and this test ties to the cent using it, so it is not a live problem in this workbook. But if 10104000 is genuinely a posting GL account in live NetSuite for something other than 'Other Receivables' (e.g. if it is actually the real Inventory Asset parent account), a bs_by_account_month source keyed purely on acctnumber would collide with this mapping. Verify 10104000 against the live NetSuite chart of accounts before trusting this entry in a NetSuite-sourced pipeline."
+  ]
+}

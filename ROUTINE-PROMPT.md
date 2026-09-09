@@ -3,11 +3,46 @@
 This is the self-contained prompt for the Spikeball Finance refresh routine
 (PRD-month-refresh.md Section 5 M5 / Section 8), scheduled on cron
 `0 0,10,13-23 * * *` (UTC) -- see the Environment section below for the MT equivalents.
-**This routine has no repository source** -- you download the code yourself, every
-run, as a zip bundle from Spikeball's Google Drive (see step 2). Every credential this
-routine needs is set directly as an environment variable on this routine's cloud
-environment (see the Environment section below); there is no separate secrets
-manager or token exchange beyond the Google OAuth refresh in step 2.
+**This routine runs from a repository source.** The session starts already inside a
+checkout of that repository's default branch -- there is nothing to download, no zip,
+no Drive bundle. Every credential this routine needs is set directly as an environment
+variable on this routine's cloud environment (see the Environment section below); there
+is no separate secrets manager or token exchange beyond the Google OAuth refresh used
+throughout the pipeline.
+
+## Why this design
+
+Earlier versions of this routine downloaded the pipeline code as a zip from Drive on
+every run. That worked for the credential and network checks, but the session's own
+auto-mode permission classifier would not execute code it had just downloaded as an
+unreviewed bundle: it denied `pip install` and `python3 spike/routine/run_nightly.py`
+even on runs where every credential was present and every host was reachable, so the
+routine could never get past its own permission check to run the pipeline -- and since
+`alert.py` was inside that same unreviewed bundle, the routine could not even report
+its own failure. Attaching this repository as the routine's source removes the
+download entirely: the code this session runs is the same code checked into the
+repository, already reviewed there, and this repository's own `.claude/settings.json`,
+loaded automatically when the session starts, carries a `permissions.allow` list of
+prefix rules (one entry per command this prompt runs, in the style
+`Bash(python3 spike/routine/run_nightly.py:*)`) that the auto-mode classifier honors.
+That `permissions.allow` list is the entire fix -- the routine's own stored
+`auto_mode_allow` / `auto_mode_environment` / `auto_mode_soft_deny` fields (visible in
+its configuration) are a separate mechanism that only an account's own user settings
+or organization policy can set; a repository cannot populate them, and nothing in this
+repository tries to. Do not confuse the two: if a future run is still denied a command,
+the fix is an additional `permissions.allow` entry in `.claude/settings.json`, never an
+`autoMode.*` setting anywhere in this repository. Nothing about what the pipeline does
+changes -- only how the session reaches the code and how its permissions are granted.
+
+Because a wrapped command does not inherit the wrapped command's own allow rule,
+`.claude/settings.json` lists `nohup python3 spike/routine/run_nightly.py` and
+`timeout` (used in step 5 below) as their own separate entries, alongside every other
+command these steps run (`git`, `pip install`, `curl`, `tail`, `cat`, `kill`, `grep`,
+`mkdir`, `echo`, `ls`, `date`, `head`, `wc`, `test`, `cd`, `python3 --version`, and each
+`python3 spike/routine/*.py` invocation). Every bash block below is written to match
+those rules exactly -- always `python3`, never `python` (a rule for one does not match
+the other) -- and should be run verbatim, not paraphrased or rewritten inline, even
+when the rewrite would be functionally identical.
 
 ## What you are
 
@@ -20,14 +55,16 @@ report it and stop.
 
 - **Read-only against NetSuite, Amazon, and every live account.** Nothing here writes
   to NetSuite, Celigo, or Amazon, ever.
+- **The code is never edited by the routine.** This session reads the repository
+  checkout as it stands; it never modifies, patches, or writes to any file inside it.
 - **No fake data, ever.** If a step fails, report the failure. Never substitute a
   placeholder or invented value.
 - **No secrets in output, ever.** Never print, log, or echo a token, deploy key,
   refresh token, client secret, or API key value -- including inside a relayed error
   message. If a command's output might contain one (a `curl` response with an
-  `Authorization` header echoed back, a verbose git clone line), don't include that
+  `Authorization` header echoed back, a verbose install log), don't include that
   output verbatim in anything you write.
-- **Never commit or push anything.** This routine only reads the code bundle.
+- **Never commit or push anything.** This routine only reads the checked-out code.
 - **Never touch `.env*` files.**
 
 ## Environment (this routine's cloud configuration)
@@ -35,6 +72,8 @@ report it and stop.
 Every value below is set as a plain environment variable on this routine's cloud
 environment (Environment variables, `.env` format, in the environment's settings).
 Nothing is read from a secrets service; the variable is simply present or it is not.
+The environment's Setup script runs `pip install -r requirements.txt` before this
+session starts, using the same checkout this session sees.
 
 - `NETSUITE_ACCOUNT_ID`, `NETSUITE_CONSUMER_KEY`, `NETSUITE_CONSUMER_SECRET`,
   `NETSUITE_TOKEN_ID`, `NETSUITE_TOKEN_SECRET` -- NetSuite token-based-authentication
@@ -42,12 +81,10 @@ Nothing is read from a secrets service; the variable is simply present or it is 
   sentinel variables step 1 checks.
 - `SPIKEBALL_OAUTH_CLIENT_ID`, `SPIKEBALL_OAUTH_CLIENT_SECRET`,
   `SPIKEBALL_GCP_OAUTH_REFRESH_TOKEN` -- Google OAuth credentials used to mint
-  short-lived access tokens for Drive and Sheets (step 2 and throughout the pipeline).
+  short-lived access tokens for Drive and Sheets throughout the pipeline.
   `SPIKEBALL_OAUTH_CLIENT_ID` is the other sentinel variable step 1 checks.
 - `SPIKEBALL_ALERT_TO` -- the email address that receives the failure alert.
 - `SPIKEBALL_FINANCE_SHEET_ID` -- the Google Sheet id for "Spikeball Finance Data".
-- `SPIKEBALL_DASH_BUNDLE_FILE_ID` -- the Drive file id of the code bundle step 2
-  downloads.
 - `SPIKEBALL_DASH_STATE_FILE_ID` -- the Drive file id holding the pipeline's
   carry-forward state (for example, the Amazon order watermark).
 - `SPIKEBALL_REFRESH_REQUEST_URL` -- the refresh-request endpoint url, embedded in the
@@ -71,6 +108,9 @@ Nothing is read from a secrets service; the variable is simply present or it is 
   very first run under a new environment; that run publishes a fresh artifact and
   prints `ARTIFACT_URL <url>`; set the variable to that url before the next run
   (step 7b).
+- `SPIKEBALL_DASH_BUNDLE_FILE_ID`, used by the earlier zip-download design, is no
+  longer read by this prompt. Leaving it set on the environment is harmless; it can be
+  removed whenever convenient.
 - Network access: **Full** (not the default "Trusted" mode -- Trusted blocks NetSuite,
   Amazon, and Google's OAuth endpoint; see step 1 and step 4).
 - Cron: `0 0,10,13-23 * * *` (UTC, five-field, minimum one-hour granularity -- this
@@ -118,39 +158,60 @@ oauth2.googleapis.com unreachable` and a one-sentence note that this routine's n
 access setting needs to be **Full**, not the default. Do not retry, do not attempt any
 other step.
 
-### 2. Download this project's code bundle
+### 2. Verify the checkout
 
-The routine's sandbox has no `ssh` binary and rewrites GitHub SSH URLs to HTTPS, so the code is not
-cloned from GitHub. The owner publishes a zip of the project tree to Spikeball's own Google Drive, and
-this step downloads it with a short-lived Google access token minted from the refresh token already in
-this environment. Nothing is printed except the byte count.
+This session starts inside a checkout of the repository this routine is attached to,
+at the repository's default branch. Confirm the checkout is actually what it should be
+before installing anything or touching Python:
 
 ```bash
-python3 - <<'PY'
-import io, json, os, urllib.parse, urllib.request, zipfile
-client_id = os.environ["SPIKEBALL_OAUTH_CLIENT_ID"]
-client_secret = os.environ["SPIKEBALL_OAUTH_CLIENT_SECRET"]
-refresh_token = os.environ["SPIKEBALL_GCP_OAUTH_REFRESH_TOKEN"]
-body = urllib.parse.urlencode({"client_id": client_id, "client_secret": client_secret,
-                               "refresh_token": refresh_token, "grant_type": "refresh_token"}).encode()
-at = json.load(urllib.request.urlopen(urllib.request.Request("https://oauth2.googleapis.com/token", data=body), timeout=60))["access_token"]
-fid = os.environ["SPIKEBALL_DASH_BUNDLE_FILE_ID"]
-z = urllib.request.urlopen(urllib.request.Request(f"https://www.googleapis.com/drive/v3/files/{fid}?alt=media",
-                                                  headers={"Authorization": "Bearer " + at}), timeout=120).read()
-zipfile.ZipFile(io.BytesIO(z)).extractall("dash")
-print("BUNDLE_OK", len(z), "bytes")
-PY
-cd dash
+missing=""
+for f in spike/routine/run_nightly.py requirements.txt .claude/settings.json; do
+  if [ ! -f "$f" ]; then
+    missing="$missing $f"
+  fi
+done
+if [ -n "$missing" ]; then
+  echo "CHECKOUT_MISSING$missing"
+else
+  echo "CHECKOUT_OK"
+fi
+git rev-parse --short HEAD 2>/dev/null || echo "no git metadata in this checkout"
 ```
 
-The extracted folder `dash/` is the dashboard project: `spike/`, `design/`, `PRD.md` sit at the top.
-If the download fails, stop and report the HTTP error (it does not contain a credential).
+If `CHECKOUT_MISSING` printed any paths: **stop.** This means the routine's repository
+source is misconfigured, or missing, or pointed at the wrong branch. Name the exact
+path(s) you looked for and confirm nothing is present at that path, then end your
+response with exactly `CHECKOUT_MISSING <paths>`. Do not attempt to fetch, clone, or
+download anything yourself to work around it.
+
+Log the commit hash `git rev-parse --short HEAD` printed (not a secret, safe to
+include in your summary) -- it ties this run's numbers to the exact version of the
+code that produced them, which matters if a later run's output ever needs explaining.
 
 ### 3. Install dependencies
 
+This environment provisions in order: the environment itself, then the repository
+checkout, then the Setup script (`pip install -r requirements.txt`, configured on the
+environment), and only then does this session start, inside that checkout. Whether
+packages the Setup script installs persist into this session is not documented, so
+this step re-runs the install defensively rather than assuming they do. Run it every
+time, and treat a run that reports everything already satisfied as success, not as
+evidence the Setup script didn't work:
+
 ```bash
-pip install requests requests-oauthlib
+pip install -r requirements.txt
 ```
+
+If this fails for any reason, the pipeline cannot run. `alert.py` lives in this same
+checkout, so it is available even here:
+
+```bash
+python3 spike/routine/alert.py --subject "Spikeball Finance nightly: dependency install failed" \
+  --body "pip install -r requirements.txt failed in the routine's session. <paste the last few lines of pip's output, with any token or key value removed>."
+```
+
+Then **stop.** Do not attempt to work around a missing or broken dependency yourself.
 
 ### 4. Diagnose -- check every host the pipeline needs, before running it
 
@@ -234,15 +295,15 @@ cleanly -- `NIGHTLY_PARTIAL_OK`'s reason text says which one didn't, but that's
 informational, not something to act on).
 
 a. Read the summary/reason text -- it names the artifact file path
-   (`design/mockup/dashboard.artifact.html`, relative to `dash/`), the `asof_date`, and
-   (for `NIGHTLY_PARTIAL_OK`) which store(s) succeeded vs. failed.
+   (`design/mockup/dashboard.artifact.html`, relative to this checkout's root), the
+   `asof_date`, and (for `NIGHTLY_PARTIAL_OK`) which store(s) succeeded vs. failed.
 b. Publish that file's contents with the Artifact tool. Which artifact depends on the
    environment variable `SPIKEBALL_ARTIFACT_URL`:
    - If `SPIKEBALL_ARTIFACT_URL` is set (every run after the first): pass it as `url` so
      this is an update of the existing page, `file_path`
-     `dash/design/mockup/dashboard.artifact.html` (adjust if you did not `cd dash` in
-     step 2), `label` `gate-<asof_date>` (e.g. `gate-2026-09-08`); omit `title`,
-     `favicon`, `description`, and never pass `force`. Do not target any other artifact.
+     `design/mockup/dashboard.artifact.html` (relative to this checkout's root),
+     `label` `gate-<asof_date>` (e.g. `gate-2026-09-08`); omit `title`, `favicon`,
+     `description`, and never pass `force`. Do not target any other artifact.
    - If `SPIKEBALL_ARTIFACT_URL` is empty or unset (the first run under a new
      environment): publish a NEW artifact with the same `file_path` and `label`,
      `title` `Spikeball Finance`, `favicon` `📈`, `description`
@@ -271,9 +332,8 @@ c. Stop. Do not retry, do not investigate NetSuite/Amazon/BigQuery/Sheets by han
 
 - This routine reads every credential from its own environment variables
   (Environment section above); no secrets manager or additional token exchange is
-  needed beyond the Google OAuth refresh in step 2.
+  needed beyond the Google OAuth refresh used throughout the pipeline.
 - Nothing in this routine needs a browser, X server, or GUI of any kind.
-- If `spike/routine/run_nightly.py` doesn't exist after extracting the bundle (an
-  out-of-date bundle or an extraction that landed on the wrong path), that's a
-  stop-and-report condition: name the exact path you looked for and what's actually
-  there.
+- If the checkout is missing `spike/routine/run_nightly.py`, `requirements.txt`, or
+  `.claude/settings.json` (step 2), that's a stop-and-report condition, not something
+  to work around: name the exact path you looked for and what's actually there.
