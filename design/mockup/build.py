@@ -68,14 +68,27 @@ def apply_feature_flags(data, features_csv, refresh_url):
     so the key is always present after build. Called after load_json and after
     inject_v1_compat. With features_csv empty and refresh_url empty/None, meta.features
     is left as whatever inject_v1_compat produced (no names added) and
-    meta.refresh_request_url is added as "" -- the only difference from a pre-flag
-    build (T5)."""
+    meta.refresh_request_url is added as "" and the two schedule keys
+    (meta.nightly_slot_utc, meta.check_hours_utc) are added -- the only differences
+    from a pre-flag build, none visible in the rendered text (T5)."""
     meta = data.setdefault("meta", {})
     features = meta.setdefault("features", {})
     for name in (n.strip() for n in (features_csv or "").split(",")):
         if name:
             features[name] = True
     meta["refresh_request_url"] = refresh_url or ""
+    # Schedule facts for the page's refresh wording (nextCheckLabel / cadence copy in
+    # template.html) so the MT labels follow the routine's cron and nightly slot
+    # (SPIKEBALL_NIGHTLY_SLOT_UTC, default 9) instead of being written into the page.
+    raw_slot = os.environ.get("SPIKEBALL_NIGHTLY_SLOT_UTC", "").strip()
+    try:
+        slot_hour = int(raw_slot) if raw_slot else 9
+    except ValueError:
+        slot_hour = 9
+    if not 0 <= slot_hour <= 23:
+        slot_hour = 9
+    meta["nightly_slot_utc"] = slot_hour
+    meta["check_hours_utc"] = sorted({0, slot_hour, *range(13, 24)})
     return data
 
 

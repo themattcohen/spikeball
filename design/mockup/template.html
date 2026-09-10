@@ -4233,15 +4233,29 @@ function denverHM(dateObj){
   var h = parseInt(p.hour, 10) % 24;
   return pad2(h) + ':' + p.minute;
 }
-/* Hourly checks 07:00 to 18:00 America/Denver, else 03:00 (the routine's
-   nightly slot); PRD Section 5 M4. */
+/* The routine's scheduled check hours (UTC, from its cron) and nightly slot come
+   from META.check_hours_utc / META.nightly_slot_utc (build.py), so these labels follow
+   the cron and daylight saving instead of being written in; PRD Section 5 M4. */
+function checkHoursUtc(){
+  var h = (typeof META !== 'undefined' && META && META.check_hours_utc) || [];
+  return h.length ? h : [0, 9, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
+}
 function nextCheckLabel(){
-  var p = denverParts(new Date(), {hour:'2-digit'});
-  var hour = parseInt(p.hour, 10) % 24;
-  if (hour < 3) return '03:00 MT';
-  if (hour < 7) return '07:00 MT';
-  if (hour < 18) return pad2(hour+1) + ':00 MT';
-  return '03:00 MT';
+  var hours = checkHoursUtc();
+  var probe = new Date(); probe.setUTCMinutes(0, 0, 0);
+  for (var i = 0; i <= 48; i++){
+    probe = new Date(probe.getTime() + 3600000);
+    if (hours.indexOf(probe.getUTCHours()) !== -1) return denverHM(probe) + ' MT';
+  }
+  return denverHM(probe) + ' MT';
+}
+function nightlySlotLabel(){
+  var slot = (typeof META !== 'undefined' && META && typeof META.nightly_slot_utc === 'number') ? META.nightly_slot_utc : 9;
+  var d = new Date(); d.setUTCHours(slot, 0, 0, 0);
+  var p = denverParts(d, {hour:'2-digit'});
+  var h = parseInt(p.hour, 10) % 24;
+  var h12 = h % 12; if (h12 === 0) h12 = 12;
+  return '~' + h12 + (h < 12 ? 'am' : 'pm') + ' MT';
 }
 var REFRESH_MEMORY = null;
 function recordRefreshRequest(){
@@ -4462,7 +4476,7 @@ function renderFreshnessPill(){
      rendered; otherwise #asof-cadence keeps its baseline text untouched. */
   if (REFRESH_ON){
     var cadence = document.getElementById('asof-cadence');
-    if (cadence) cadence.textContent = 'refreshes nightly ~3am MT, or within the hour on request';
+    if (cadence) cadence.textContent = 'refreshes nightly ' + nightlySlotLabel() + ', or within the hour on request';
   }
 }
 

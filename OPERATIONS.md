@@ -55,6 +55,12 @@ it. `run_log` gains two columns for this routine's runs: `trigger` (`nightly` or
 otherwise). The Sheet's `run_log` and `refresh_requests` tabs are the day-to-day health check for this
 routine -- they show what actually happened on every run, not just how long a session took.
 
+The request endpoint is an Apps Script web app owned by the Google account whose refresh token the
+routine uses (the identity in RUNBOOK-google-identity.md). Its source is
+`scripts/refresh_request_webapp/Code.gs`; a change there goes live only after `clasp push` and
+`clasp deploy -i <deployment id>` as that account (the deployment id is in that folder's README). The
+confirmation page derives its times from `SCHEDULE_UTC_HOURS`, which must equal the routine's cron hours.
+
 ### Environment variables and where the code runs from
 
 The gated routine runs from a checkout of this project's GitHub repository, attached to its cloud

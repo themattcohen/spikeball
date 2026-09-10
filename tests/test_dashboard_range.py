@@ -265,7 +265,13 @@ def html_no_refresh_feature_path(build_dir):
 @pytest.fixture(scope="module")
 def browser():
     with sync_playwright() as p:
-        b = p.chromium.launch(headless=True)
+        try:
+            b = p.chromium.launch(headless=True)
+        except Exception as exc:  # patchright installed, its chromium build not
+            pytest.skip(
+                f"chromium not available for patchright ({type(exc).__name__}); "
+                "run: python3 -m patchright install chromium"
+            )
         yield b
         b.close()
 
@@ -881,6 +887,24 @@ def test_t8_refresh_control(browser, html_on_path, html_no_refresh_url_path, htm
 # T8b -- Cadence copy
 # ===========================================================================
 
+def _expected_nightly_label():
+    """The '~4am MT' label build.py/template.html derive from SPIKEBALL_NIGHTLY_SLOT_UTC
+    (default 9) for today's date in America/Denver, so the test follows the env and
+    daylight saving exactly as the page does."""
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+    raw = os.environ.get("SPIKEBALL_NIGHTLY_SLOT_UTC", "").strip()
+    try:
+        slot = int(raw) if raw else 9
+    except ValueError:
+        slot = 9
+    if not 0 <= slot <= 23:
+        slot = 9
+    h = datetime.now(timezone.utc).replace(hour=slot, minute=0, second=0, microsecond=0)
+    h = h.astimezone(ZoneInfo("America/Denver")).hour
+    h12 = h % 12 or 12
+    return f"~{h12}{'am' if h < 12 else 'pm'} MT"
+
 def test_t8b_cadence_copy(browser, html_on_path, html_no_refresh_feature_path):
     with dash_page(browser) as (page, errors):
         goto(page, html_on_path)
@@ -890,7 +914,7 @@ def test_t8b_cadence_copy(browser, html_on_path, html_no_refresh_feature_path):
         baseline_text = page.inner_text("#asof-cadence")
 
     assert not errors, f"console/page errors during T8b: {errors}"
-    assert rendered_text == "refreshes nightly ~3am MT, or within the hour on request", (
+    assert rendered_text == f"refreshes nightly {_expected_nightly_label()}, or within the hour on request", (
         f"T8b: #asof-cadence (control rendered) unexpected text: {rendered_text!r}"
     )
     assert baseline_text == "refreshes nightly ~3am MT", (

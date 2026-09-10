@@ -40,7 +40,14 @@ original 02:00 MST / 03:00 MDT slot:
    -- the cron controls when the routine's session starts, and
    `SPIKEBALL_NIGHTLY_SLOT_UTC` controls which of those hours the routine treats as the
    guaranteed nightly run rather than an optional check.
-3. Save both changes.
+3. In `scripts/refresh_request_webapp/Code.gs`, change `SCHEDULE_UTC_HOURS` from
+   `[0, 10, 13, ...]` to `[0, 9, 13, ...]`, commit, and redeploy the request endpoint:
+   `clasp push` then `clasp deploy -i <deployment id>` from that folder (the id is in
+   its README), signed in as the Google account that owns the Apps Script project (the
+   same account whose refresh token the routine uses). Until the redeploy, the
+   confirmation page keeps quoting the old overnight hour; the dashboard page's own
+   wording follows `SPIKEBALL_NIGHTLY_SLOT_UTC` at its next run with no action.
+4. Save all changes.
 
 ## Step 3: confirm the change took
 

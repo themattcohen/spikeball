@@ -27,11 +27,13 @@ Open the dashboard url.
 ## 2. The refresh request round trip
 
 - Click "Request data refresh." It opens a new tab. You should see either:
-  - A confirmation page: "Refresh requested at `<time>` MT. The dashboard republishes
-    within the next hourly check (07:00 to 18:00 MT) or at 03:00 MT."
+  - A confirmation page headed "Refresh requested at `<time>` MT." followed by numbered
+    steps: the current time, the refresh schedule in MT, when the next refresh starts,
+    roughly how long it takes, and when to reload the dashboard.
   - Or, if a refresh was already requested in the last 10 minutes: "A refresh was
-    already requested at `<time>` MT; the next check honors it." Both are correct
-    behavior, not an error.
+    already requested at `<time>` MT." with the same steps. Both are correct behavior,
+    not an error. The times on that page are computed from the routine's schedule and
+    follow daylight saving by themselves.
 - Open the "Spikeball Finance Data" Google Sheet and go to the `refresh_requests` tab.
   You should see a new row with `status` = `queued`, with `requested_at_utc` and
   `requested_at_mt` filled in and `source` = `dashboard`.
