@@ -26,7 +26,12 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
-from patchright.sync_api import sync_playwright
+
+# Browser DOM tests need patchright (requirements-dev.txt) plus `python3 -m patchright
+# install chromium`; without them this module skips cleanly instead of breaking collection.
+sync_playwright = pytest.importorskip(
+    "patchright.sync_api", reason="patchright not installed (see requirements-dev.txt)"
+).sync_playwright
 
 # ---------------------------------------------------------------------------
 # Paths / constants

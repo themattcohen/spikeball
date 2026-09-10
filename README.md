@@ -49,3 +49,15 @@ python -m pytest tests -q
 headless Chromium browser; without them that file fails to collect. Run the other test
 files individually (for example `python -m pytest tests/test_refresh_gate.py -q`) on a
 machine without a browser available.
+
+## Running the tests
+
+```bash
+pip install -r requirements-dev.txt
+python3 -m patchright install chromium   # only for the browser DOM tests
+python3 -m pytest tests -q
+```
+
+The gate tests need nothing beyond `requirements-dev.txt`. The dashboard DOM tests skip
+themselves when `patchright` is not installed. `requirements.txt` stays runtime-only: it is
+what the routine's Setup script installs before every run.

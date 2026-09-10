@@ -5,6 +5,7 @@
       "Bash(python3 spike/routine/run_nightly.py:*)",
       "Bash(python3 spike/routine/alert.py:*)",
       "Bash(python3 -m pytest:*)",
+      "Bash(python3 -m patchright install:*)",
       "Bash(nohup python3 spike/routine/run_nightly.py:*)",
       "Bash(timeout:*)",
       "Bash(tail:*)",

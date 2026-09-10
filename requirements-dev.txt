@@ -1,0 +1,4 @@
+# Test-only dependencies. Never installed by the routine's Setup script (that uses
+# requirements.txt). After installing, run: python3 -m patchright install chromium
+pytest==7.4.3
+patchright==1.58.2

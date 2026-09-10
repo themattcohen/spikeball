@@ -78,7 +78,8 @@ def test_decide_lock_busy_blocks_everything():
     assert (verdict, reason, honored) == ("skip", "GATE_BUSY", [])
 
 
-def test_decide_lock_age_at_90min_boundary_no_longer_busy():
+def test_decide_lock_age_at_90min_boundary_no_longer_busy(monkeypatch):
+    monkeypatch.delenv("SPIKEBALL_NIGHTLY_SLOT_UTC", raising=False)  # hour 9 is the slot only at the default
     # 90 minutes exactly is NOT "< 90", so the lock no longer blocks. Use the nightly
     # slot hour so the rest of the table can only produce one unambiguous verdict.
     now_9 = _utc(2026, 9, 8, 9, 0, 0)
@@ -86,7 +87,8 @@ def test_decide_lock_age_at_90min_boundary_no_longer_busy():
     assert (verdict, reason, honored) == ("run", "nightly_slot", [])
 
 
-def test_decide_lock_none_not_busy():
+def test_decide_lock_none_not_busy(monkeypatch):
+    monkeypatch.delenv("SPIKEBALL_NIGHTLY_SLOT_UTC", raising=False)  # hour 9 is the slot only at the default
     now_9 = _utc(2026, 9, 8, 9, 0, 0)
     verdict, reason, honored = refresh_gate.decide(now_9, [], RECENT_SUCCESS, None, None)
     assert (verdict, reason, honored) == ("run", "nightly_slot", [])
@@ -152,13 +154,15 @@ def test_decide_already_honored_request_not_re_honored():
     assert (verdict, reason, honored) == ("skip", "no_request", [])
 
 
-def test_decide_nightly_slot():
+def test_decide_nightly_slot(monkeypatch):
+    monkeypatch.delenv("SPIKEBALL_NIGHTLY_SLOT_UTC", raising=False)  # hour 9 is the slot only at the default
     now_9 = _utc(2026, 9, 8, 9, 0, 0)
     verdict, reason, honored = refresh_gate.decide(now_9, [], RECENT_SUCCESS, None, None)
     assert (verdict, reason, honored) == ("run", "nightly_slot", [])
 
 
-def test_decide_nightly_slot_beats_stale_20h():
+def test_decide_nightly_slot_beats_stale_20h(monkeypatch):
+    monkeypatch.delenv("SPIKEBALL_NIGHTLY_SLOT_UTC", raising=False)  # hour 9 is the slot only at the default
     now_9 = _utc(2026, 9, 8, 9, 0, 0)
     verdict, reason, honored = refresh_gate.decide(now_9, [], STALE_SUCCESS, None, None)
     assert (verdict, reason, honored) == ("run", "nightly_slot", [])
