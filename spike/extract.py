@@ -37,6 +37,7 @@ import argparse
 import calendar
 import datetime
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -53,6 +54,25 @@ from extract_v2 import (fetch_accounts, build_pnl_by_account_month, build_pnl_ch
 from extract_v2_bs import build_bs_by_account_month
 from extract_v2_bs_snapshot import build_bs_snapshot_current
 from checks_v2 import run_checks_v2
+
+
+def _atomic_write_json(path, obj):
+    """Write ``obj`` as JSON to ``path`` atomically.
+
+    Writes a complete temp file in the same directory, fsyncs it, then
+    ``os.replace()`` (atomic on the same filesystem). A crash, out-of-space, or
+    an interrupt mid-write can never leave a truncated/partial file that a later
+    ``json.load()`` chokes on with "Expecting ':' delimiter" -- the target is
+    either the old complete file or the new complete file, never a half-written
+    one. Same dump options as before (indent=2, default=str)."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(obj, f, indent=2, default=str)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
 
 MT = ZoneInfo("America/Denver")
 
@@ -1347,8 +1367,7 @@ def main_recheck(args):
     meta["checks"] = checks_result
 
     out_path = Path(args.out) if args.out else recheck_path
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=2, default=str)
+    _atomic_write_json(out_path, output)
     print(f"[extract] --recheck wrote {out_path}", file=sys.stderr)
 
     print("\n=== meta.t5_sentinels ===")
@@ -1696,15 +1715,12 @@ def main():
         output["meta"]["checks_v2"] = {"v2_pass": False, "error": str(e)[:500]}
         print(f"[extract] checks_v2 raised: {e}", file=sys.stderr)
 
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=2, default=str)
+    _atomic_write_json(out_path, output)
     print(f"[extract] wrote {out_path}", file=sys.stderr)
 
     if args.write_state:
         state_path = Path(args.write_state)
-        state_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(state_path, "w", encoding="utf-8") as f:
-            json.dump(build_write_state(output), f, indent=2, default=str)
+        _atomic_write_json(state_path, build_write_state(output))
         print(f"[extract] wrote state {state_path}", file=sys.stderr)
 
     print("\n=== meta.sections ===")
