@@ -194,8 +194,11 @@ plan's calendar year (January through December); the start and end month selects
 
 Editing the plan: open the "Revenue Plan" tab, keep the header row (Channel, Series, then one YYYY-MM
 column per month) and type gross dollars into the cells. Channel is Amazon, Spikeball.com or Wholesale
-(Other B2B is accepted). Series is Plan; a second row per channel with Series "Forecast" is read and kept
-for a later reforecast view but does not draw today. Blank means no plan for that month. The nightly reads
+(Other B2B is accepted). Series is Plan for the original plan. A row with Channel Total and Series Forecast
+draws as a second, dotted line in the Total view of the chart and fills the Forecast, Var vs forecast and
+Var vs forecast % columns of the table; a Forecast row for a channel draws in that channel's view. Where no
+Forecast row covers the selected channel, the legend and the table caption say so and the forecast cells
+are blank. Blank means no plan or forecast for that month. The nightly reads
 the tab and never writes it. A row it cannot read is dropped and listed on the revenue_plan_meta tabs; if
 the header is missing the whole tab is treated as unavailable, the last good copy is used and the page
 says "Plan is stale"; with no good copy at all the plan controls hide and the page says "Plan not

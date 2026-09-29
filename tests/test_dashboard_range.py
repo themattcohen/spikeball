@@ -1408,3 +1408,288 @@ def test_plan_screenshots(browser, html_on_path, plan_data):
                 written.append(out_path)
     assert not errors, errors
     assert len(written) == 4
+
+
+# ---------------------------------------------------------------------------
+# Forecast line (owner ruling 2026-09-29): a Total row with Series Forecast draws
+# beside the plan in the Total view and fills the forecast columns of the table;
+# a channel view without a channel forecast says so. Bug F3: a forecast row in
+# revenue_plan_month must never move a plan value. Fixture: the real extract plus
+# twelve Total/forecast rows for the plan year, shaped to the revenue_plan_month /
+# plan_vs_actual_month / revenue_plan_meta contract (spike/CONTRACT.md).
+# ---------------------------------------------------------------------------
+
+FORECAST_TOTAL_BY_MONTH = [491630, 1711710, 1122622, 2406885, 2203277, 2776683, 2256927, 1132102, 978069, 916382, 1847062, 1096873]
+PLAN_TABLE_HEADERS = ["Month", "Plan", "Actual", "Variance", "Var %"]
+FORECAST_TABLE_HEADERS = ["Forecast", "Var vs forecast", "Var vs forecast %"]
+FORECAST_COLS = ("forecast", "variance_vs_forecast", "var_vs_forecast_pct")
+PLAN_COLS = ("plan", "actual", "variance", "var_pct")
+
+
+def with_total_forecast(data, *, available=True):
+    """The extract plus one Total/forecast row per month of the plan year. With
+    available=True, plan_vs_actual_month and revenue_plan_meta follow the contract
+    (total rows carry the forecast and its variance, channel rows null,
+    forecast_available true, forecast_grain "total"). With available=False only the
+    revenue_plan_month rows are added: the shape that triggered bug F3, which the
+    page must ignore entirely."""
+    out = json.loads(json.dumps(data))
+    year = str(out["meta"]["plan_year"])
+    fc = {f"{year}-{m:02d}": float(v) for m, v in enumerate(FORECAST_TOTAL_BY_MONTH, start=1)}
+    for ym, v in fc.items():
+        out["revenue_plan_month"].append({"ym": ym, "key": "total", "label": "Total", "series": "forecast", "plan_gross": v})
+    if not available:
+        return out, fc
+    for r in out["plan_vs_actual_month"]:
+        f = fc.get(r["ym"]) if r["key"] == "total" else None
+        r["forecast_gross"] = f
+        if f is not None and r.get("actual_gross") is not None:
+            r["variance_vs_forecast"] = r["actual_gross"] - f
+            r["variance_vs_forecast_pct"] = round((r["actual_gross"] - f) / f * 100, 1)
+        else:
+            r["variance_vs_forecast"] = None
+            r["variance_vs_forecast_pct"] = None
+    meta = out["revenue_plan_meta"]
+    meta["forecast_available"] = True
+    meta["forecast_grain"] = "total"
+    meta["series"] = sorted(set(meta.get("series") or []) | {"plan", "forecast"})
+    return out, fc
+
+
+def _build_variant(build_dir, data, name):
+    src = build_dir / f"{name}.json"
+    src.write_text(json.dumps(data), encoding="utf-8")
+    out = build_dir / f"{name}.html"
+    _run_build(out, features="range_selector,refresh_control", refresh_url=FIXTURE_REFRESH_URL, data_path=src)
+    return out
+
+
+@pytest.fixture(scope="module")
+def forecast_fixture(build_dir, plan_data):
+    """(html path, {ym: total forecast}) for the contract-shaped forecast build."""
+    data, fc = with_total_forecast(plan_data)
+    return _build_variant(build_dir, data, "forecast_total"), fc
+
+
+@pytest.fixture(scope="module")
+def forecast_rows_unflagged_path(build_dir, plan_data):
+    """Forecast rows present in revenue_plan_month, nothing else changed (bug F3's input)."""
+    data, _ = with_total_forecast(plan_data, available=False)
+    return _build_variant(build_dir, data, "forecast_rows_unflagged")
+
+
+def _forecast_points(page, key):
+    """Forecast markers for a key: value plus the marker's centre in viewBox units."""
+    return page.eval_on_selector_all(
+        f'path.forecast-pt[data-forecast-key="{key}"]',
+        "els => els.map(e => { const b = e.getBBox(); return {ym: e.getAttribute('data-ym'), "
+        "forecast: parseFloat(e.getAttribute('data-forecast')), cy: b.y + b.height / 2}; })",
+    )
+
+
+def _table_headers(page):
+    """Header text as a wide screen shows it (a th may carry a .v-full / .v-compact pair like the cells)."""
+    return page.eval_on_selector_all(
+        "#plan-vs-actual-table thead th",
+        "els => els.map(e => { const f = e.querySelector('.v-full'); return (f ? f : e).textContent; })",
+    )
+
+
+def _forecast_legend_item(page):
+    return page.eval_on_selector(
+        "#trend-forecast-legend-item",
+        "e => ({text: e.textContent, state: e.getAttribute('data-forecast'), swatch: !!e.querySelector('.legend-forecast-swatch')})",
+    )
+
+
+def _plan_snapshot(page, keys):
+    """Plan points and the plan-side table cells for every key: what bug F3 must not move."""
+    snap = {}
+    for key in keys:
+        page.select_option("#channel-trend-plan-select", key)
+        rows = _table_rows(page)
+        snap[key] = {
+            "points": [(p["ym"], p["plan"]) for p in _plan_points(page, key)],
+            "table": {rid: {c: cols.get(c) for c in PLAN_COLS} for rid, cols in rows.items()},
+        }
+    page.select_option("#channel-trend-plan-select", "total")
+    return snap
+
+
+def test_f3_forecast_rows_leave_plan_unchanged(browser, html_on_path, forecast_fixture, forecast_rows_unflagged_path, plan_by_key_month):
+    keys = ["total"] + sorted(plan_by_key_month)
+    with dash_page(browser) as (page, errors):
+        goto(page, html_on_path)
+        baseline = _plan_snapshot(page, keys)
+    assert not errors, errors
+    for path in (forecast_fixture[0], forecast_rows_unflagged_path):
+        with dash_page(browser) as (page, errors):
+            goto(page, path)
+            got = _plan_snapshot(page, keys)
+        assert not errors, errors
+        for key in keys:
+            assert [ym for ym, _ in got[key]["points"]] == [ym for ym, _ in baseline[key]["points"]], (path.name, key)
+            for (ym, v), (_, b) in zip(got[key]["points"], baseline[key]["points"]):
+                assert_close(v, b, CURRENCY_TOL, f"{path.name}: {key} plan point {ym} moved")
+            assert got[key]["table"].keys() == baseline[key]["table"].keys(), (path.name, key)
+            for rid, cols in baseline[key]["table"].items():
+                for col, b in cols.items():
+                    g = got[key]["table"][rid][col]
+                    if b is None:
+                        assert g is None, f"{path.name}: {key} {rid} {col} was blank, now {g}"
+                    else:
+                        assert_close(g, b, PERCENT_TOL if col == "var_pct" else CURRENCY_TOL, f"{path.name}: {key} {rid} {col} moved")
+
+
+def test_forecast_line_legend_and_tooltip_total_view(browser, forecast_fixture, default_range_months):
+    path, fc = forecast_fixture
+    with dash_page(browser) as (page, errors):
+        goto(page, path)
+        pts = _forecast_points(page, "total")
+        n_lines = page.eval_on_selector_all("#channel-trend-viz path.forecast-line", "els => els.length")
+        n_plan_lines = page.eval_on_selector_all("#channel-trend-viz path.plan-line", "els => els.length")
+        fc_dash = page.eval_on_selector("#channel-trend-viz path.forecast-line", "e => getComputedStyle(e).strokeDasharray")
+        plan_dash = page.eval_on_selector("#channel-trend-viz path.plan-line", "e => getComputedStyle(e).strokeDasharray")
+        item = _forecast_legend_item(page)
+        legend = page.inner_text("#channel-trend-legend")
+        basis = page.inner_text("#channel-trend-basis")
+        aria = page.eval_on_selector("#channel-trend-viz svg", "e => e.getAttribute('aria-label')")
+        # the y-axis extent in viewBox units: the outermost gridlines (top tick and baseline)
+        grid_ys = page.eval_on_selector_all(
+            "#channel-trend-viz svg line.grid-line, #channel-trend-viz svg line.baseline-line",
+            "els => els.map(e => parseFloat(e.getAttribute('y1')))",
+        )
+        hit = page.locator("#channel-trend-viz svg rect[fill='transparent']")
+        hit.scroll_into_view_if_needed()
+        box = hit.bounding_box()
+        page.mouse.move(box["x"] + box["width"] * 0.30, box["y"] + box["height"] / 2)
+        tooltip = page.inner_text("#tooltip")
+    assert not errors, errors
+    assert [p["ym"] for p in pts] == default_range_months, "one forecast marker per month of the plan year"
+    for p in pts:
+        assert_close(p["forecast"], fc[p["ym"]], CURRENCY_TOL, f"forecast point {p['ym']}")
+        assert min(grid_ys) - 0.5 <= p["cy"] <= max(grid_ys) + 0.5, f"forecast point {p['ym']} drawn outside the axis extent"
+    assert n_lines >= 1 and n_plan_lines >= 1, "both lines draw in the total view"
+    assert fc_dash not in ("none", ""), f"forecast line must be dotted, got dasharray {fc_dash!r}"
+    assert plan_dash in ("none", ""), f"plan line must stay solid, got dasharray {plan_dash!r}"
+    assert item == {"text": "Forecast", "state": "drawn", "swatch": True}, item
+    assert "Plan" in legend and "Forecast" in legend
+    assert "Forecast = rows with Series Forecast" in basis, basis
+    assert "forecast line" in aria, aria
+    for name in ("Plan", "Actual", "Variance", "Forecast", "Var vs forecast"):
+        assert name in tooltip, f"tooltip lacks {name}: {tooltip!r}"
+
+
+def test_forecast_absent_in_channel_view(browser, forecast_fixture, plan_by_key_month):
+    path, _ = forecast_fixture
+    with dash_page(browser) as (page, errors):
+        goto(page, path)
+        for key in sorted(plan_by_key_month):
+            page.select_option("#channel-trend-plan-select", key)
+            label = page.eval_on_selector(f'#channel-trend-plan-select option[value="{key}"]', "e => e.textContent")
+            n_fc = page.eval_on_selector_all("#channel-trend-viz path.forecast-line, #channel-trend-viz path.forecast-pt", "els => els.length")
+            n_plan = len(_plan_points(page, key))
+            item = _forecast_legend_item(page)
+            sub = page.inner_text("#plan-vs-actual-sub")
+            assert n_fc == 0, f"{key}: forecast drawn without a channel forecast"
+            assert n_plan > 0, f"{key}: plan line missing"
+            assert item == {"text": f"No forecast for {label}", "state": "none", "swatch": False}, item
+            assert f"No forecast for {label}" in sub, sub
+        page.select_option("#channel-trend-plan-select", "total")
+        back = _forecast_points(page, "total")
+        item = _forecast_legend_item(page)
+    assert not errors, errors
+    assert len(back) == 12 and item["state"] == "drawn", "forecast returns when Total is selected again"
+
+
+def test_forecast_table_columns(browser, forecast_fixture, pva_by_key_month, plan_by_key_month, asof_ym, default_range_months):
+    path, fc = forecast_fixture
+    year = default_range_months[0][:4]
+    jan = f"{year}-01"
+
+    def expected_agg(months):
+        """Mirrors the plan aggregation: every month, or only the elapsed months once actuals have started."""
+        elapsed = [m for m in months if m <= asof_ym]
+        shown = elapsed if elapsed and len(elapsed) < len(months) else months
+        return sum(fc[m] for m in shown), elapsed
+
+    with dash_page(browser) as (page, errors):
+        goto(page, path)
+        headers = _table_headers(page)
+        rows = _table_rows(page)
+        channel_rows = {}
+        for key in sorted(plan_by_key_month):
+            page.select_option("#channel-trend-plan-select", key)
+            channel_rows[key] = (_table_headers(page), _table_rows(page))
+    assert not errors, errors
+    assert headers == PLAN_TABLE_HEADERS + FORECAST_TABLE_HEADERS, headers
+    jan_row = rows[f"month:{jan}"]
+    jan_actual = pva_by_key_month["total"][jan]["actual_gross"]
+    assert_close(jan_row["forecast"], 491630.0, CURRENCY_TOL, "January forecast")
+    assert_close(jan_row["variance_vs_forecast"], jan_actual - 491630.0, CURRENCY_TOL, "January var vs forecast")
+    assert_close(jan_row["var_vs_forecast_pct"], round((jan_actual - 491630.0) / 491630.0 * 100, 1), PERCENT_TOL, "January var vs forecast %")
+    assert_close(jan_row["plan"], pva_by_key_month["total"][jan]["plan_gross"], CURRENCY_TOL, "January plan")
+    for ym in default_range_months:
+        r = rows[f"month:{ym}"]
+        assert_close(r["forecast"], fc[ym], CURRENCY_TOL, f"{ym} forecast")
+        if ym > asof_ym:
+            assert r["variance_vs_forecast"] is None and r["var_vs_forecast_pct"] is None, f"{ym} is a future month"
+        else:
+            assert_close(r["variance_vs_forecast"], r["actual"] - fc[ym], CURRENCY_TOL, f"{ym} var vs forecast")
+    for q in range(1, 5):
+        qm = [f"{year}-{m:02d}" for m in range(3 * q - 2, 3 * q + 1)]
+        qrow = rows[f"quarter:{year}-Q{q}"]
+        exp, elapsed = expected_agg(qm)
+        assert_close(qrow["forecast"], exp, CURRENCY_TOL, f"Q{q} forecast")
+        if elapsed:
+            actual = sum(rows[f"month:{m}"]["actual"] for m in elapsed)
+            assert_close(qrow["variance_vs_forecast"], actual - sum(fc[m] for m in elapsed), CURRENCY_TOL, f"Q{q} var vs forecast")
+        else:
+            assert qrow["variance_vs_forecast"] is None and qrow["var_vs_forecast_pct"] is None, f"Q{q} has no actuals"
+    through = [m for m in default_range_months if m <= asof_ym]
+    assert_close(rows["ytd"]["forecast"], sum(fc[m] for m in through), CURRENCY_TOL, "YTD forecast")
+    assert_close(rows["ytd"]["variance_vs_forecast"], rows["ytd"]["actual"] - sum(fc[m] for m in through), CURRENCY_TOL, "YTD var vs forecast")
+    assert_close(rows["fy"]["forecast"], sum(fc.values()), CURRENCY_TOL, "full-year forecast")
+    assert rows["fy"]["variance_vs_forecast"] is None and rows["fy"]["var_vs_forecast_pct"] is None
+    assert rows["fy"]["_text"].strip() == f"Full-year {year}", rows["fy"]["_text"]
+    for key, (h, crows) in channel_rows.items():
+        assert h == PLAN_TABLE_HEADERS + FORECAST_TABLE_HEADERS, (key, h)
+        assert crows, key
+        for rid, cols in crows.items():
+            for col in FORECAST_COLS:
+                assert cols.get(col) is None, f"{key} {rid} {col} should be blank, got {cols.get(col)}"
+
+
+def test_no_forecast_available_renders_as_today(browser, html_on_path, forecast_rows_unflagged_path):
+    for path in (html_on_path, forecast_rows_unflagged_path):
+        with dash_page(browser) as (page, errors):
+            goto(page, path)
+            headers = _table_headers(page)
+            legend = page.inner_text("#channel-trend-legend")
+            n_item = page.eval_on_selector_all("#trend-forecast-legend-item", "els => els.length")
+            n_fc = page.eval_on_selector_all("#channel-trend-viz path.forecast-line, #channel-trend-viz path.forecast-pt", "els => els.length")
+            n_cells = page.eval_on_selector_all("#plan-vs-actual-table td[data-col='forecast']", "els => els.length")
+            basis = page.inner_text("#channel-trend-basis")
+            sub = page.inner_text("#plan-vs-actual-sub")
+            section_sub = page.inner_text("#channel-section-sub")
+        assert not errors, errors
+        assert headers == PLAN_TABLE_HEADERS, (path.name, headers)
+        assert "Forecast" not in legend and n_item == 0, (path.name, legend)
+        assert n_fc == 0 and n_cells == 0, path.name
+        for text in (basis, sub, section_sub):
+            assert "forecast" not in text.lower(), (path.name, text)
+
+
+def test_forecast_no_new_phone_overflow(browser, html_on_path, forecast_fixture):
+    widths = {}
+    for name, path in (("base", html_on_path), ("forecast", forecast_fixture[0])):
+        with dash_page(browser) as (page, errors):
+            page.set_viewport_size({"width": 390, "height": 844})
+            goto(page, path)
+            widths[name] = page.evaluate(
+                "() => ({doc: document.documentElement.scrollWidth, "
+                "card: document.querySelector('#channel-section .chart-card').scrollWidth})"
+            )
+        assert not errors, errors
+    assert widths["forecast"]["doc"] <= widths["base"]["doc"], widths
+    assert widths["forecast"]["card"] <= widths["base"]["card"], widths

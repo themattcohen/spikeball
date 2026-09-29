@@ -96,9 +96,10 @@ Both are built and tested.
 6. Tell the CFO how the plan is edited (or point him at OPERATIONS.md, "Gross revenue and
    the plan line"): open the "Revenue Plan" tab, keep the header row (Channel, Series,
    then one YYYY-MM column per month), type gross dollars. Channel is Amazon,
-   Spikeball.com or Wholesale; Series is Plan. A second row per channel with Series
-   "Forecast" is read and stored for a later reforecast view but does not draw yet. Blank
-   means no plan that month. Nothing writes to that tab but him.
+   Spikeball.com or Wholesale; Series is Plan. A row with Channel Total and Series
+   Forecast draws as a second, dotted line in the Total view and fills the forecast
+   columns of the table; a Forecast row for a channel draws in that channel's view.
+   Blank means no plan or forecast that month. Nothing writes to that tab but him.
 
 ## If something looks off
 

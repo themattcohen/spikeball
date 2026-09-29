@@ -318,6 +318,16 @@ section > h2{ font-size:20px; margin-bottom:14px; letter-spacing:-0.005em; }
 .plan-line-halo{ fill:none; stroke:var(--surface); stroke-width:5; stroke-linejoin:round; stroke-linecap:round; opacity:.9; }
 .plan-pt{ fill:var(--surface); stroke:var(--ink); stroke-width:2; }
 .plan-end-label{ fill:var(--ink); font-size:10.5px; font-family:var(--font-sans); font-weight:600; }
+/* Forecast: the same ink as the plan, told apart by pattern and marker, never by hue. Dotted 2px line
+   (dash 2, gap 7, round caps) with a per-dash surface halo; filled diamond markers versus the plan's hollow circles. */
+.forecast-line{ fill:none; stroke:var(--ink); stroke-width:2; stroke-linejoin:round; stroke-linecap:round; stroke-dasharray:2 7; }
+.forecast-line-halo{ fill:none; stroke:var(--surface); stroke-width:5; stroke-linejoin:round; stroke-linecap:round; stroke-dasharray:2 7; opacity:.9; }
+.forecast-pt{ fill:var(--ink); stroke:var(--surface); stroke-width:2; stroke-linejoin:round; }
+.forecast-end-label{ fill:var(--ink); font-size:10.5px; font-family:var(--font-sans); font-weight:600; }
+.legend-forecast-swatch{ width:16px; height:10px; flex:none; position:relative; }
+.legend-forecast-swatch::before{ content:''; position:absolute; left:0; right:0; top:4px; height:2px; background:repeating-linear-gradient(to right, var(--ink) 0 3px, transparent 3px 6px); }
+.legend-forecast-swatch::after{ content:''; position:absolute; left:5px; top:2px; width:6px; height:6px; background:var(--ink); transform:rotate(45deg); }
+.legend-item.legend-note{ color:var(--muted); }
 .mtd-mark{ fill:var(--muted); font-size:9px; font-family:var(--font-sans); letter-spacing:.04em; }
 .plan-select-wrap{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-2); }
 .plan-select-wrap .range-select{ max-width:150px; }
@@ -834,7 +844,13 @@ var ALL_MONTHS = (function(){
   return out.sort();
 })();
 var PLAN_META = (RAW.revenue_plan_meta && typeof RAW.revenue_plan_meta === 'object') ? RAW.revenue_plan_meta : null;
-var PLAN_ROWS = Array.isArray(RAW.revenue_plan_month) ? RAW.revenue_plan_month.filter(function(r){ return r && r.ym && r.key && r.plan_gross != null && isFinite(r.plan_gross); }) : [];
+/* revenue_plan_month carries one row per (series, key, month); plan_gross is the row's amount for its own
+   series. Only the plan series feeds PLAN_BY; forecast rows feed FORECAST_BY. A row with no series field is
+   a plan row (the shape from before the series column existed). */
+function planSeriesOf(r){ return (r.series == null || r.series === '') ? 'plan' : String(r.series).toLowerCase(); }
+var PLAN_ROWS_ALL = Array.isArray(RAW.revenue_plan_month) ? RAW.revenue_plan_month.filter(function(r){ return r && r.ym && r.key && r.plan_gross != null && isFinite(r.plan_gross); }) : [];
+var PLAN_ROWS = PLAN_ROWS_ALL.filter(function(r){ return planSeriesOf(r) === 'plan'; });
+var FORECAST_ROWS = PLAN_ROWS_ALL.filter(function(r){ return planSeriesOf(r) === 'forecast'; });
 var PVA_ROWS = Array.isArray(RAW.plan_vs_actual_month) ? RAW.plan_vs_actual_month : [];
 var PLAN_OK = !!(PLAN_META && PLAN_META.valid === true && PLAN_ROWS.length && PVA_ROWS.length);
 var PLAN_YEAR = (META.plan_year != null) ? String(META.plan_year) : ((PLAN_META && PLAN_META.year != null) ? String(PLAN_META.year) : null);
@@ -844,6 +860,13 @@ PLAN_ROWS.forEach(function(r){
   PLAN_BY[r.key][r.ym] = (PLAN_BY[r.key][r.ym] || 0) + r.plan_gross;
   if (r.label) PLAN_LABEL[r.key] = r.label;
 });
+var FORECAST_BY = {}, FORECAST_KEYS = [];
+FORECAST_ROWS.forEach(function(r){
+  if (!FORECAST_BY[r.key]){ FORECAST_BY[r.key] = {}; FORECAST_KEYS.push(r.key); }
+  FORECAST_BY[r.key][r.ym] = (FORECAST_BY[r.key][r.ym] || 0) + r.plan_gross;
+});
+/* The forecast draws only when the extract flags it available; a forecast row on its own changes nothing. */
+var FORECAST_OK = !!(PLAN_OK && PLAN_META.forecast_available === true);
 var PVA_BY = {};
 PVA_ROWS.forEach(function(r){ if (!r || !r.key || !r.ym) return; (PVA_BY[r.key] || (PVA_BY[r.key] = {}))[r.ym] = r; });
 /* Revenue on the gross basis when the row carries it, net otherwise. */
@@ -1418,15 +1441,27 @@ function chartWindow(){
   if (!PLAN_OK) return TRAILING_MONTHS;
   return RANGE_ON ? currentRangeMonths() : defaultRangeMonths();
 }
-/* Plan for one month: key is 'total' or a rollup key. null when no plan row covers it. */
-function planValueFor(key, ym){
-  if (!PLAN_OK) return null;
+/* One series' value for one month: key is 'total' or a rollup key. The total is the series' explicit
+   'total' row when it has one (a month that row leaves blank is null), else the sum of its channel rows.
+   null when no row covers it. */
+function seriesValueFor(by, keys, key, ym){
   if (key === 'total'){
+    /* Per month, same rule as the reader (spike/revenue_plan.py _series_total): the explicit
+       Total row's value for this month if it has one, else the sum of this month's channel
+       rows, else null. */
+    if (by.total && by.total[ym] != null) return by.total[ym];
     var any = false, sum = 0;
-    PLAN_KEYS.forEach(function(k){ var v = PLAN_BY[k][ym]; if (v != null){ sum += v; any = true; } });
+    keys.forEach(function(k){ var v = by[k][ym]; if (v != null){ sum += v; any = true; } });
     return any ? sum : null;
   }
-  return (PLAN_BY[key] && PLAN_BY[key][ym] != null) ? PLAN_BY[key][ym] : null;
+  return (by[key] && by[key][ym] != null) ? by[key][ym] : null;
+}
+function planValueFor(key, ym){ return PLAN_OK ? seriesValueFor(PLAN_BY, PLAN_KEYS, key, ym) : null; }
+function forecastValueFor(key, ym){ return FORECAST_OK ? seriesValueFor(FORECAST_BY, FORECAST_KEYS, key, ym) : null; }
+/* Whether any forecast row covers a key: its own row, or for 'total' any forecast row at all. */
+function forecastCoversKey(key){
+  if (!FORECAST_OK) return false;
+  return key === 'total' ? FORECAST_KEYS.length > 0 : !!FORECAST_BY[key];
 }
 function signedMoney(v){
   if (v == null || !isFinite(v)) return 'n/a';
@@ -1439,6 +1474,7 @@ function buildChannelTrendChart(onSelectRollup, o){
   var keys = o.keys || ROLLUP_ORDER;
   var pyValues = o.pyValues || null;
   var planVals = o.planVals || null;
+  var forecastVals = o.forecastVals || null;
   var planKey = o.planKey || 'total';
   var planMode = !!o.planMode;
   var n = months.length;
@@ -1464,7 +1500,7 @@ function buildChannelTrendChart(onSelectRollup, o){
     if (pos > maxStack) maxStack = pos;
     if (neg < minStack) minStack = neg;
   });
-  [pyValues, planVals].forEach(function(arr){
+  [pyValues, planVals, forecastVals].forEach(function(arr){
     if (!arr) return;
     arr.forEach(function(v){ if (v != null){ if (v > maxStack) maxStack = v; if (v < minStack) minStack = v; } });
   });
@@ -1476,7 +1512,7 @@ function buildChannelTrendChart(onSelectRollup, o){
   var RADIUS = 4;
 
   var svgLabel = planMode
-    ? ('Gross revenue by channel with the revenue plan line, ' + n + ' months, stacked column chart')
+    ? ('Gross revenue by channel with the revenue plan line' + (forecastVals ? ' and the forecast line' : '') + ', ' + n + ' months, stacked column chart')
     : 'Revenue by channel, trailing thirteen months, stacked column chart';
   var svg = svgEl('svg', {viewBox:'0 0 '+VIEW_W+' '+VIEW_H, role:'img', 'aria-label':svgLabel});
 
@@ -1635,6 +1671,43 @@ function buildChannelTrendChart(onSelectRollup, o){
     }
   }
 
+  /* forecast overlay line: dotted ink over a per-dash surface halo, filled diamond markers; drawn above the plan */
+  if (forecastVals){
+    var fcX = function(i){ return M.left + i*band + band/2; };
+    var fcSegs = [], curFc = null, lastFc = null;
+    forecastVals.forEach(function(v, i){
+      if (v == null){ curFc = null; return; }
+      var pt = fcX(i).toFixed(1) + ',' + yScale(v).toFixed(1);
+      lastFc = {x:fcX(i), y:yScale(v)};
+      if (!curFc){ curFc = [pt]; fcSegs.push(curFc); } else { curFc.push(pt); }
+    });
+    var fcG = svgEl('g', {'data-forecast-key':planKey, 'aria-hidden':'true'});
+    fcSegs.forEach(function(pts){
+      if (pts.length < 2) return;
+      fcG.appendChild(svgEl('path', {d:'M' + pts.join(' L'), class:'forecast-line-halo'}));
+    });
+    fcSegs.forEach(function(pts){
+      if (pts.length < 2) return;
+      fcG.appendChild(svgEl('path', {d:'M' + pts.join(' L'), class:'forecast-line', 'data-forecast-line':'1'}));
+    });
+    forecastVals.forEach(function(v, i){
+      if (v == null) return;
+      var cx = fcX(i), cy = yScale(v), R = 5;
+      fcG.appendChild(svgEl('path', {
+        d:'M' + cx + ',' + (cy - R) + ' L' + (cx + R) + ',' + cy + ' L' + cx + ',' + (cy + R) + ' L' + (cx - R) + ',' + cy + ' Z',
+        class:'forecast-pt', 'data-ym':months[i], 'data-forecast':String(v), 'data-forecast-key':planKey
+      }));
+    });
+    svg.appendChild(fcG);
+    /* End label only where it fits (wide layout) and clears the plan's own end label; the legend carries it otherwise. */
+    var planEndY = (planVals && lastPt) ? lastPt.y : null;
+    if (lastFc && !hasEndLabels && !narrow && (planEndY == null || Math.abs(planEndY - lastFc.y) >= 12)){
+      var fl = svgEl('text', {class:'forecast-end-label', x:lastFc.x + 10, y:lastFc.y + 3.5, 'aria-hidden':'true'});
+      fl.textContent = 'Forecast';
+      svg.appendChild(fl);
+    }
+  }
+
   /* crosshair */
   var crosshair = svgEl('line', {class:'crosshair-line', x1:0, x2:0, y1:M.top, y2:M.top+TREND_PLOT_H});
   svg.appendChild(crosshair);
@@ -1675,6 +1748,14 @@ function buildChannelTrendChart(onSelectRollup, o){
         ttRow(box, null, 'Actual', actV != null ? money(actV) : 'n/a');
         ttRow(box, null, 'Variance', signedMoney(varV));
         ttRow(box, null, 'Variance %', signedPct1(varP));
+        if (forecastVals){
+          var fcV = (r && r.forecast_gross != null) ? r.forecast_gross : forecastVals[i];
+          if (fcV != null){
+            ttRow(box, null, 'Forecast', money(fcV));
+            ttRow(box, null, 'Var vs forecast', signedMoney(r ? r.variance_vs_forecast : null));
+            ttRow(box, null, 'Var vs forecast %', signedPct1(r ? r.variance_vs_forecast_pct : null));
+          }
+        }
       }
     });
   }
@@ -2302,6 +2383,9 @@ function redrawTrend(){
   var months = chartWindow();
   var keys = trendKeys();
   var planKey = keys.length === 1 ? keys[0] : 'total';
+  /* Forecast for the selected key over the range; null when no forecast row covers the key or the range. */
+  var forecastVals = forecastCoversKey(planKey) ? months.map(function(ym){ return forecastValueFor(planKey, ym); }) : null;
+  if (forecastVals && !forecastVals.some(function(v){ return v != null; })) forecastVals = null;
 
   var pyToggle = document.getElementById('channel-trend-pytoggle');
   var pyVals = monthlyPy(months, keys);
@@ -2326,9 +2410,11 @@ function redrawTrend(){
     viz.appendChild(buildChannelTrendChart(setChannel, {
       months: months, keys: keys,
       pyValues: (trendState.showPY && pyVals) ? pyVals : null,
-      planVals: planVals, planKey: planKey, planMode: PLAN_OK
+      planVals: planVals, planKey: planKey, planMode: PLAN_OK,
+      forecastVals: forecastVals
     }));
   }
+  syncForecastLegend(planKey, !!forecastVals);
   var tableWrap = document.getElementById('channel-trend-table');
   tableWrap.innerHTML = '';
   tableWrap.appendChild(buildChannelTrendTable(months));
@@ -2347,9 +2433,13 @@ function planCellsOf(pk, ym){
   var actual = r ? r.actual_gross : null;
   var variance = r ? r.variance : null;
   var varPct = r ? r.variance_pct : null;
-  if (basis === 'future'){ actual = null; variance = null; varPct = null; }
+  /* Forecast columns come from the same row (the extract pairs actual with forecast); blank, never 0, when no forecast covers the key. */
+  var forecast = FORECAST_OK ? (r ? (r.forecast_gross != null ? r.forecast_gross : null) : forecastValueFor(pk, ym)) : null;
+  var varFc = (FORECAST_OK && r && r.variance_vs_forecast != null) ? r.variance_vs_forecast : null;
+  var varFcPct = (FORECAST_OK && r && r.variance_vs_forecast_pct != null) ? r.variance_vs_forecast_pct : null;
+  if (basis === 'future'){ actual = null; variance = null; varPct = null; varFc = null; varFcPct = null; }
   if (basis === 'no_plan'){ plan = null; variance = null; varPct = null; }
-  return {plan:plan, actual:actual, variance:variance, varPct:varPct, basis:basis};
+  return {plan:plan, actual:actual, variance:variance, varPct:varPct, basis:basis, forecast:forecast, varFc:varFc, varFcPct:varFcPct};
 }
 /* Sums a set of month cells. Variance pairs actual with plan only where both exist. */
 function planAggregate(cells){
@@ -2363,12 +2453,22 @@ function planAggregate(cells){
   cells.forEach(function(c){ if (c.actual != null && c.plan != null){ planElapsed += c.plan; anyElapsed = true; } });
   var partial = hasActual && cells.some(function(c){ return c.actual == null && c.plan != null; });
   var shownPlan = partial ? planElapsed : planAll;
+  /* Forecast aggregates the same way: every month, or only the elapsed months once actuals have started. */
+  var fcAll = 0, hasFc = false, fcElapsed = 0, pairActualFc = 0, pairFc = 0, pairedFc = false;
+  cells.forEach(function(c){
+    if (c.forecast != null){ fcAll += c.forecast; hasFc = true; }
+    if (c.actual != null && c.forecast != null){ fcElapsed += c.forecast; pairActualFc += c.actual; pairFc += c.forecast; pairedFc = true; }
+  });
+  var partialFc = hasActual && cells.some(function(c){ return c.actual == null && c.forecast != null; });
   return {
     plan: (hasPlan ? shownPlan : null),
     actual: hasActual ? actual : null,
     variance: paired ? pairActual - pairPlan : null,
     varPct: (paired && pairPlan !== 0) ? (pairActual - pairPlan) / pairPlan * 100 : null,
-    partial: partial
+    partial: partial,
+    forecast: hasFc ? (partialFc ? fcElapsed : fcAll) : null,
+    varFc: pairedFc ? pairActualFc - pairFc : null,
+    varFcPct: (pairedFc && pairFc !== 0) ? (pairActualFc - pairFc) / pairFc * 100 : null
   };
 }
 var fCurrencyCompact3 = new Intl.NumberFormat('en-US', {style:'currency', currency:'USD', notation:'compact', maximumSignificantDigits:3});
@@ -2396,6 +2496,11 @@ function planTableRow(rowId, cls, label, c, tag){
   cell('actual', c.actual, money(c.actual), compactMoney(c.actual));
   cell('variance', c.variance, signedMoney(c.variance), (c.variance > 0 ? '+' : '') + compactMoney(c.variance));
   cell('var_pct', c.varPct, signedPct1(c.varPct));
+  if (FORECAST_OK){
+    cell('forecast', c.forecast, money(c.forecast), compactMoney(c.forecast));
+    cell('variance_vs_forecast', c.varFc, signedMoney(c.varFc), (c.varFc > 0 ? '+' : '') + compactMoney(c.varFc));
+    cell('var_vs_forecast_pct', c.varFcPct, signedPct1(c.varFcPct));
+  }
   return tr;
 }
 function renderPlanTable(months, pk){
@@ -2407,11 +2512,23 @@ function renderPlanTable(months, pk){
   wrap.hidden = false;
   var label = pk === 'total' ? 'Total' : (ROLLUP_LABEL[pk] || pk);
   document.getElementById('plan-vs-actual-title').textContent = 'Plan vs actual, ' + label;
-  document.getElementById('plan-vs-actual-sub').textContent = 'Gross revenue. Variance = actual minus plan. The open month is month to date against its full-month plan.';
+  var subText = 'Gross revenue. Variance = actual minus plan' + (FORECAST_OK ? '; var vs forecast = actual minus forecast' : '') +
+    '. The open month is month to date against its full-month plan' + (FORECAST_OK ? ' and forecast' : '') + '.';
+  if (FORECAST_OK && !forecastCoversKey(pk)) subText += ' No forecast for ' + label + '; its forecast columns are blank.';
+  document.getElementById('plan-vs-actual-sub').textContent = subText;
 
   var table = el('table','data-table');
   var thead = el('thead'); var htr = el('tr');
   ['Month','Plan','Actual','Variance','Var %'].forEach(function(h){ var th = el('th'); th.textContent = h; htr.appendChild(th); });
+  if (FORECAST_OK){
+    /* Full header on wide screens, a short one on phones (the same .v-full / .v-compact swap the cells use). */
+    [['Forecast','Forecast'], ['Var vs forecast','vs fcst'], ['Var vs forecast %','vs fcst %']].forEach(function(h){
+      var th = el('th');
+      var full = el('span','v-full'); full.textContent = h[0]; th.appendChild(full);
+      var comp = el('span','v-compact'); comp.textContent = h[1]; th.appendChild(comp);
+      htr.appendChild(th);
+    });
+  }
   thead.appendChild(htr); table.appendChild(thead);
   var tbody = el('tbody');
 
@@ -2445,13 +2562,40 @@ function renderPlanTable(months, pk){
       tbody.appendChild(planTableRow('ytd', 'plan-ytd-row', 'YTD through ' + MONTH_ABBR[parseInt(CURRENT_YM.slice(5,7),10) - 1], ytd, null));
     }
     if (yearMonths.length){
-      var fyPlan = 0, fyHas = false;
-      yearMonths.forEach(function(ym){ var c = planCellsOf(pk, ym); if (c.plan != null){ fyPlan += c.plan; fyHas = true; } });
-      if (fyHas) tbody.appendChild(planTableRow('fy', 'plan-fy-row', 'Full-year plan ' + asofYear, {plan:fyPlan, actual:null, variance:null, varPct:null}, null));
+      var fyPlan = 0, fyHas = false, fyFc = 0, fyFcHas = false;
+      yearMonths.forEach(function(ym){
+        var c = planCellsOf(pk, ym);
+        if (c.plan != null){ fyPlan += c.plan; fyHas = true; }
+        if (c.forecast != null){ fyFc += c.forecast; fyFcHas = true; }
+      });
+      var fyLabel = (fyHas && fyFcHas) ? 'Full-year ' : (fyHas ? 'Full-year plan ' : 'Full-year forecast ');
+      if (fyHas || fyFcHas) tbody.appendChild(planTableRow('fy', 'plan-fy-row', fyLabel + asofYear,
+        {plan: fyHas ? fyPlan : null, actual:null, variance:null, varPct:null, forecast: fyFcHas ? fyFc : null, varFc:null, varFcPct:null}, null));
     }
   }
   table.appendChild(tbody);
   host.appendChild(table);
+}
+
+/* Legend entry for the forecast line. With a line drawn: dotted swatch plus 'Forecast'. Without one: the
+   fact that no forecast covers the selected channel (or the selected months), in muted text, no swatch. */
+function syncForecastLegend(planKey, drawn){
+  var item = document.getElementById('trend-forecast-legend-item');
+  if (!item) return;
+  item.innerHTML = '';
+  var txt = el('span');
+  if (drawn){
+    item.className = 'legend-item legend-static';
+    item.setAttribute('data-forecast', 'drawn');
+    item.appendChild(el('span','legend-forecast-swatch'));
+    txt.textContent = 'Forecast';
+  } else {
+    item.className = 'legend-item legend-static legend-note';
+    item.setAttribute('data-forecast', 'none');
+    var who = planKey === 'total' ? 'the total' : (ROLLUP_LABEL[planKey] || PLAN_LABEL[planKey] || planKey);
+    txt.textContent = forecastCoversKey(planKey) ? 'No forecast for these months' : ('No forecast for ' + who);
+  }
+  item.appendChild(txt);
 }
 
 /* One-time setup: legend, plan select and toggle wiring. Drawing happens in redrawTrend(),
@@ -2491,15 +2635,22 @@ function renderChannelTrend(){
     pItem.appendChild(el('span','legend-plan-swatch'));
     var pTxt = el('span'); pTxt.textContent = 'Plan'; pItem.appendChild(pTxt);
     legend.appendChild(pItem);
+    if (FORECAST_OK){
+      /* Content follows the plan select: a swatch plus 'Forecast' when the line draws, else a statement that none exists (redrawTrend keeps it current). */
+      var fItem = el('span','legend-item legend-static'); fItem.id = 'trend-forecast-legend-item';
+      legend.appendChild(fItem);
+      syncForecastLegend(trendState.planKey, forecastCoversKey(trendState.planKey));
+    }
     if (PLAN_META && PLAN_META.stale){ note.hidden = false; note.textContent = 'Plan is stale (last good copy of the Revenue Plan tab).'; }
-    sectionSub.textContent = 'Monthly gross revenue by rolled-up channel against the revenue plan. Select a channel to drill into its trend, region split and top SKUs.';
+    sectionSub.textContent = 'Monthly gross revenue by rolled-up channel against the revenue plan' + (FORECAST_OK ? ' and the forecast' : '') + '. Select a channel to drill into its trend, region split and top SKUs.';
   } else if (PLAN_META){
     note.hidden = false;
     note.textContent = 'Plan not available for this run' + (PLAN_META.stale ? ' (stale)' : '');
   }
   if (HAS_GROSS || PLAN_OK){
     basis.hidden = false;
-    basis.textContent = 'Gross revenue.' + (PLAN_OK ? ' Plan = ' + (PLAN_YEAR ? PLAN_YEAR + ' ' : '') + 'Original Plan from the Revenue Plan tab.' : '');
+    basis.textContent = 'Gross revenue.' + (PLAN_OK ? ' Plan = ' + (PLAN_YEAR ? PLAN_YEAR + ' ' : '') + 'Original Plan from the Revenue Plan tab.' : '') +
+      (FORECAST_OK ? ' Forecast = rows with Series Forecast on the same tab.' : '');
   }
   if (!PLAN_OK && HAS_GROSS){
     sectionSub.textContent = 'Trailing 13 months, gross revenue by rolled-up channel. Select a channel to drill into its trend, region split and top SKUs.';

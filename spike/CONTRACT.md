@@ -105,17 +105,47 @@ Net `revenue` everywhere is unchanged. Gross is additive.
   called with `plan_json=None` and returns `valid: false`, empty rows and a note. The call is guarded:
   on any exception `extract.py` prints one line `REVENUE_PLAN_BUILD_ERROR <msg>`, emits
   `revenue_plan_meta` with `valid: false` and `error` set, and empty lists. It never fails the nightly.
+- Revenue Plan tab rows (`Channel | Series | YYYY-MM...`): Channel is a rollup label or key from
+  `config/rollups.json`, or `Total` (case-insensitive, trimmed): the explicit total row for that series,
+  key `total`, label `Total`, allowed for any series. Series `Plan` is the plan of record; series
+  `Forecast` is the CFO's forecast of record (the "La Plata Forecast", total grain only: one `Total |
+  Forecast` row seeded by `tools/seed_revenue_plan.py --series forecast` from the CFO workbook tab
+  "2026 Forecast" row "Gross Revenue"). Any other series is parsed into `revenue_plan_month` and drawn
+  nowhere. Unknown channels, blank Series, unparsable amounts and a duplicate (channel, series) are
+  dropped and listed in `dropped_rows`.
+- Series total rule (plan and forecast alike): a series' total for a month is its explicit `Total` row
+  when present, else the sum of its channel rows, else `null`. A channel row's value is that series'
+  channel amount or `null`. The plan has no `Total` row today, so plan output is unchanged by the rule.
 - `revenue_plan_meta`: `{"valid": bool, "stale": bool, "fetched_at_mt": str|null, "source": "Revenue Plan",
-  "year": int|null, "series": ["plan"], "month_columns": [ym..], "row_count": int, "dropped_rows": [..],
-  "note": str, "error": str|null}`.
-- `revenue_plan_month`: `[{"ym", "key", "label", "series": "plan", "plan_gross": num}]`; keys `amazon`,
-  `dtc`, `wholesale`, plus `other_b2b` only when the tab has such a row.
+  "year": int|null, "series": ["forecast", "plan"] (sorted, only the series present), "month_columns":
+  [ym..], "row_count": int, "dropped_rows": [..], "note": str, "error": str|null, "forecast_available":
+  bool, "forecast_grain": "total"|"channel"|"mixed"|null}`. `forecast_available` = at least one
+  `Forecast` row parsed. `forecast_grain`: `total` = only a `Total` forecast row, `channel` = only channel
+  forecast rows, `mixed` = both, `null` = no forecast row. Sheet tabs `revenue_plan_meta_summary` (the
+  scalars, including the two forecast fields) and `revenue_plan_meta_series` come from this dict through
+  the generic publisher split; no publisher code lists these columns.
+- `revenue_plan_month`: `[{"ym", "key", "label", "series", "plan_gross": num}]`, one row per (series, key,
+  month) with an amount. `plan_gross` is the row's amount for ITS series: on a `series: "forecast"` row it
+  is the forecast amount. The column keeps that name because the Sheet tab and BigQuery table already
+  carry it. Keys are `amazon`, `dtc`, `wholesale`, `other_b2b` (only when the tab has such a row) and
+  `total` (the explicit Total row of a series, when present).
 - `plan_vs_actual_month`: `[{"ym", "key", "label", "plan_gross": num|null, "actual_gross": num|null,
-  "variance": num|null, "variance_pct": num|null, "basis": "actual"|"open"|"future"|"no_plan"}]` for
-  every rollup key in rollup order plus `key: "total"` (label `Total`). Total plan = sum of plan rows;
-  total actual = sum of `gross_revenue` over ALL rollup keys including `other_b2b` and unassigned, which
-  equals the hero total. `basis`: `actual` = month before the as-of month; `open` = the as-of month
-  (provisional MTD); `future` = after as-of (`actual_gross` null); `no_plan` = actuals but no plan row.
+  "variance": num|null, "variance_pct": num|null, "basis": "actual"|"open"|"future"|"no_plan",
+  "forecast_gross": num|null, "variance_vs_forecast": num|null, "variance_vs_forecast_pct": num|null}]`
+  for every rollup key in rollup order plus `key: "total"` (label `Total`). Total plan and total forecast
+  follow the series total rule above; total actual = sum of `gross_revenue` over ALL rollup keys including
+  `other_b2b` and unassigned, which equals the hero total. `variance` = actual - plan and `variance_pct`
+  = variance / plan * 100 (1dp, `null` when plan is 0). `variance_vs_forecast` = actual - forecast and
+  `variance_vs_forecast_pct` = that / forecast * 100 (1dp, `null` when forecast is 0 or null). Both
+  variances are `null` whenever `actual_gross` is `null` (future months, months outside the actuals
+  window). `forecast_gross` is populated for future months like `plan_gross`. `basis` depends on the
+  plan side only: `actual` = month before the as-of month; `open` = the as-of month (provisional MTD);
+  `future` = after as-of (`actual_gross` null); `no_plan` = actuals but no plan row. A forecast without a
+  plan does not change `basis`. Every row carries all eleven fields; with no forecast row the three
+  forecast fields are `null` on every row and the plan fields are byte-for-byte what they were before
+  the forecast series existed (tests/test_revenue_plan.py pins this).
+- Stale fallback (`resolve_snapshot`): the last known-good snapshot is reused whole, so forecast and
+  `Total` rows survive a failed read exactly like plan rows.
 - `meta.plan_year` (int|null, from `revenue_plan_meta.year`), `meta.chart_months` (sorted ym list: the
   union of `trailing_months` and the plan year's 12 months when the plan is valid, else
   `trailing_months`), `meta.default_range` `{"start", "end"}` as ym strings: plan year Jan..Dec when the

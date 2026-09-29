@@ -14,9 +14,12 @@ Tab layout (header row keyed by TEXT, never by column position):
     whose first cell is "Channel" (case-insensitive, trimmed).
   - Channel = a rollup label ("Amazon", "Spikeball.com", "Wholesale", "Other B2B") or a
     rollup key ("amazon", "dtc", "wholesale", "other_b2b"), matched case-insensitively
-    against spike/config/rollups.json.
-  - Series = "Plan" for the plan of record; other series (e.g. "Forecast") are parsed and
-    stored lowercased but only "plan" feeds plan_vs_actual_month.
+    against spike/config/rollups.json, or "Total": the explicit total row for that
+    series (key "total"). A series' total in a month is its Total row when present,
+    else the sum of its channel rows, else null.
+  - Series = "Plan" for the plan of record and "Forecast" for the CFO's forecast of
+    record; both feed plan_vs_actual_month (plan_gross / forecast_gross). Any other
+    series is parsed, stored lowercased in revenue_plan_month and drawn nowhere.
   - Amounts are gross revenue dollars. Blank = no plan for that month. "$", ",", spaces
     and parentheses (negative) are accepted.
   - Any number of YYYY-MM month columns; months outside 01-12 are not month columns.
@@ -44,7 +47,9 @@ TAB_NAME = "Revenue Plan"
 FETCH_RANGE = f"'{TAB_NAME}'!A1:Z200"
 MONTH_COL_RE = re.compile(r"^\d{4}-\d{2}$")
 PLAN_SERIES = "plan"
+FORECAST_SERIES = "forecast"
 TOTAL_KEY = "total"
+TOTAL_LABEL = "Total"
 UNASSIGNED_KEY = "unassigned"
 
 
@@ -144,7 +149,7 @@ def parse_revenue_plan_grid(values, rollups_cfg):
         if not channel:
             dropped.append({"row": sheet_row, "reason": "blank Channel"})
             continue
-        hit = lookup.get(channel.lower())
+        hit = (TOTAL_KEY, TOTAL_LABEL) if channel.lower() == TOTAL_KEY else lookup.get(channel.lower())
         if hit is None:
             dropped.append({"row": sheet_row, "reason": f"unknown channel '{channel}'"})
             continue
@@ -242,6 +247,41 @@ def _group_order(rollups_cfg):
     return [(g["key"], g["label"]) for g in (rollups_cfg or {}).get("groups", [])]
 
 
+def _series_amounts(plan_rows, series):
+    """{(ym, key): amount} for one series; key is a rollup key or the explicit 'total'."""
+    out = {}
+    for r in plan_rows:
+        if r["series"] != series:
+            continue
+        for ym, amt in r["months"].items():
+            out[(ym, r["key"])] = amt
+    return out
+
+
+def _series_total(amounts, ym):
+    """A series' total for a month: its explicit Total row if present, else the sum of its
+    channel rows, else None."""
+    if (ym, TOTAL_KEY) in amounts:
+        return amounts[(ym, TOTAL_KEY)]
+    vals = [v for (m, k), v in amounts.items() if m == ym and k != TOTAL_KEY]
+    return sum(vals) if vals else None
+
+
+def _forecast_grain(plan_rows):
+    """"total" when the forecast has only a Total row, "channel" when only channel rows,
+    "mixed" when both, None when there is no forecast row."""
+    keys = {r["key"] for r in plan_rows if r["series"] == FORECAST_SERIES}
+    if not keys:
+        return None
+    has_total = TOTAL_KEY in keys
+    has_channel = bool(keys - {TOTAL_KEY})
+    return "mixed" if has_total and has_channel else ("total" if has_total else "channel")
+
+
+def _pct(variance, base):
+    return round(variance / base * 100, 1) if base else None
+
+
 def build_outputs(plan_json, rollup_by_month, asof_date, rollups_cfg):
     """Returns {"revenue_plan_meta", "revenue_plan_month", "plan_vs_actual_month"}."""
     plan_json = plan_json or {}
@@ -260,7 +300,9 @@ def build_outputs(plan_json, rollup_by_month, asof_date, rollups_cfg):
         years = sorted({int(m[:4]) for m in month_cols})
         year = asof_year if asof_year in years else years[-1]
 
-    # revenue_plan_month: one row per (series, key, ym) with an amount
+    # revenue_plan_month: one row per (series, key, ym) with an amount. plan_gross is the
+    # row's amount for ITS series (a forecast row's plan_gross is the forecast amount);
+    # the column name is fixed by the Sheet tab and BigQuery table that already carry it.
     month_rows = []
     for r in plan_rows:
         for ym, amt in r["months"].items():
@@ -288,12 +330,8 @@ def build_outputs(plan_json, rollup_by_month, asof_date, rollups_cfg):
     window = {r["ym"] for r in rollup_by_month if r.get("ym")}
     actual_keys = {k for (_, k) in actual}
 
-    plan = {}  # (ym, key) -> plan_gross, series "plan" only
-    for r in plan_rows:
-        if r["series"] != PLAN_SERIES:
-            continue
-        for ym, amt in r["months"].items():
-            plan[(ym, r["key"])] = amt
+    plan = _series_amounts(plan_rows, PLAN_SERIES)          # (ym, key) -> plan_gross
+    forecast = _series_amounts(plan_rows, FORECAST_SERIES)  # (ym, key) -> forecast_gross
 
     yms = ([f"{year}-{m:02d}" for m in range(1, 13)] if year is not None
            else sorted(window))
@@ -312,27 +350,34 @@ def build_outputs(plan_json, rollup_by_month, asof_date, rollups_cfg):
         in_window = ym in window
         if basis0 != "future" and not in_window:
             outside.append(ym)
-        plan_ym = [v for (m, _), v in plan.items() if m == ym]
         for key, label in keys:
             if key == TOTAL_KEY:
-                p = sum(plan_ym) if plan_ym else None
+                p = _series_total(plan, ym)
+                f = _series_total(forecast, ym)
                 a = (sum(v for (m, _), v in actual.items() if m == ym)
                      if in_window and basis0 != "future" else None)
             else:
                 p = plan.get((ym, key))
+                f = forecast.get((ym, key))
                 a = (actual.get((ym, key), 0.0)
                      if in_window and basis0 != "future" else None)
-            p, a = _money(p), _money(a)
+            p, f, a = _money(p), _money(f), _money(a)
             basis = basis0
             if basis0 != "future" and p is None:
                 basis = "no_plan"
             variance = pct = None
             if p is not None and a is not None and basis0 != "future":
                 variance = _money(a - p)
-                pct = round(variance / p * 100, 1) if p else None
+                pct = _pct(variance, p)
+            variance_f = pct_f = None
+            if f is not None and a is not None and basis0 != "future":
+                variance_f = _money(a - f)
+                pct_f = _pct(variance_f, f)
             pva.append({"ym": ym, "key": key, "label": label, "plan_gross": p,
                         "actual_gross": a, "variance": variance, "variance_pct": pct,
-                        "basis": basis})
+                        "basis": basis, "forecast_gross": f,
+                        "variance_vs_forecast": variance_f,
+                        "variance_vs_forecast_pct": pct_f})
     if outside:
         notes.append("no actuals in the rollup window for: " + ", ".join(sorted(set(outside))))
 
@@ -351,6 +396,8 @@ def build_outputs(plan_json, rollup_by_month, asof_date, rollups_cfg):
         "dropped_rows": list(plan_json.get("dropped_rows") or []) if valid else [],
         "note": note,
         "error": plan_json.get("error") if plan_json else "Revenue Plan not read this run",
+        "forecast_available": any(r["series"] == FORECAST_SERIES for r in plan_rows),
+        "forecast_grain": _forecast_grain(plan_rows),
     }
     if not valid and meta["error"] is None:
         meta["error"] = "Revenue Plan not valid"

@@ -21,13 +21,13 @@ var THROTTLE_WINDOW_MS = 10 * 60 * 1000;
 var MT_TIME_ZONE = 'America/Denver';
 
 /**
- * The UTC hours the refresh routine's cron fires on: `0 0,10,13-23 * * *`. Kept in UTC,
+ * The UTC hours the refresh routine's cron fires on: `0 0,9,13-23 * * *`. Kept in UTC,
  * the cron's own frame, so the Mountain Time wording below stays correct across daylight
  * saving without editing this file. If the cron ever changes (see the handoff packet's
  * CUTOVER.md), change this list to match and redeploy; every time this page quotes then
  * follows automatically.
  */
-var SCHEDULE_UTC_HOURS = [0, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
+var SCHEDULE_UTC_HOURS = [0, 9, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
 
 /** Roughly how long a real pull takes, start to republished page. */
 var TYPICAL_RUN_MINUTES = 15;

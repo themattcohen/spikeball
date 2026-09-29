@@ -113,6 +113,27 @@ def test_extra_series_kept_lowercased():
     assert [x["series"] for x in r["rows"]] == ["plan", "forecast"]
 
 
+@pytest.mark.parametrize("cell", ["Total", "TOTAL", " total ", "tOtAl"])
+def test_total_channel_parses_case_insensitive_and_trimmed_for_any_series(cell):
+    r = revenue_plan.parse_revenue_plan_grid(
+        grid([cell, "Forecast", "1", "", ""], [cell, "Plan", "2", "", ""]), CFG)
+    assert r["valid"] and r["dropped_rows"] == []
+    assert r["rows"] == [
+        {"key": "total", "label": "Total", "series": "forecast", "months": {"2026-01": 1.0}},
+        {"key": "total", "label": "Total", "series": "plan", "months": {"2026-01": 2.0}}]
+
+
+def test_total_channel_duplicate_within_a_series_is_rejected():
+    r = revenue_plan.parse_revenue_plan_grid(
+        grid(["Total", "Forecast", "1", "", ""], ["total", "forecast", "9", "", ""]), CFG)
+    assert len(r["rows"]) == 1 and r["rows"][0]["months"] == {"2026-01": 1.0}
+    assert r["dropped_rows"] == [{"row": 3, "reason": "duplicate row for channel 'total' series 'forecast'"}]
+
+
+def test_total_channel_is_not_a_rollup_lookup_hit():
+    assert "total" not in revenue_plan._channel_lookup(CFG)
+
+
 def test_columns_keyed_by_label_not_position():
     g = [["Series", "Channel", "2026-06", "junk", "2026-05"], ["x"], ["Plan", "Amazon", "6", "", "5"]]
     g[0] = ["Channel", "junk", "2026-06", "Series", "2026-05"]
@@ -210,13 +231,139 @@ def test_total_plan_and_actual_include_all_keys_and_unassigned():
     assert pva(out, "2026-02", "total")["actual_gross"] == 180.0
 
 
-def test_forecast_series_does_not_feed_plan_vs_actual():
+PLAN_FIELDS = ("ym", "key", "label", "plan_gross", "actual_gross", "variance", "variance_pct", "basis")
+FORECAST_FIELDS = ("forecast_gross", "variance_vs_forecast", "variance_vs_forecast_pct")
+
+
+def test_forecast_feeds_forecast_gross_and_never_plan_gross():
     pj = plan_json([prow("amazon", "Amazon", {"2026-01": 80.0}),
-                    prow("amazon", "Amazon", {"2026-01": 999.0}, series="forecast")])
+                    prow("amazon", "Amazon", {"2026-01": 125.0}, series="forecast")])
     out = revenue_plan.build_outputs(pj, full_year_rollup(), "2026-06-01", CFG)
-    assert pva(out, "2026-01", "amazon")["plan_gross"] == 80.0
+    r = pva(out, "2026-01", "amazon")
+    assert (r["plan_gross"], r["variance"], r["variance_pct"]) == (80.0, 20.0, 25.0)
+    assert (r["forecast_gross"], r["variance_vs_forecast"], r["variance_vs_forecast_pct"]) == (125.0, -25.0, -20.0)
     assert out["revenue_plan_meta"]["series"] == ["forecast", "plan"]
-    assert len(out["revenue_plan_month"]) == 2
+    assert [(m["series"], m["plan_gross"]) for m in out["revenue_plan_month"]] == [("forecast", 125.0), ("plan", 80.0)]
+
+
+def test_total_forecast_row_alone_fills_total_rows_and_leaves_channels_null():
+    pj = plan_json([prow("amazon", "Amazon", {"2026-01": 80.0, "2026-02": 90.0}),
+                    prow("total", "Total", {"2026-01": 150.0, "2026-02": 160.0}, series="forecast")])
+    out = revenue_plan.build_outputs(pj, full_year_rollup(), "2026-06-01", CFG)
+    t = pva(out, "2026-01", "total")
+    assert (t["plan_gross"], t["actual_gross"], t["forecast_gross"]) == (80.0, 180.0, 150.0)
+    assert (t["variance_vs_forecast"], t["variance_vs_forecast_pct"]) == (30.0, 20.0)
+    for key in ("amazon", "wholesale", "dtc", "other_b2b"):
+        r = pva(out, "2026-01", key)
+        assert (r["forecast_gross"], r["variance_vs_forecast"], r["variance_vs_forecast_pct"]) == (None, None, None)
+    # the Total forecast row is an ordinary revenue_plan_month row
+    assert {"ym": "2026-02", "key": "total", "label": "Total", "series": "forecast",
+            "plan_gross": 160.0} in out["revenue_plan_month"]
+
+
+def test_channel_forecast_rows_sum_into_total_when_no_total_row():
+    pj = plan_json([prow("amazon", "Amazon", {"2026-01": 80.0}),
+                    prow("amazon", "Amazon", {"2026-01": 100.5}, series="forecast"),
+                    prow("dtc", "Spikeball.com", {"2026-01": 20.25}, series="forecast")])
+    out = revenue_plan.build_outputs(pj, full_year_rollup(), "2026-06-01", CFG)
+    assert pva(out, "2026-01", "total")["forecast_gross"] == 120.75
+    assert pva(out, "2026-01", "amazon")["forecast_gross"] == 100.5
+    assert pva(out, "2026-01", "wholesale")["forecast_gross"] is None
+    assert pva(out, "2026-02", "total")["forecast_gross"] is None
+
+
+def test_explicit_total_forecast_row_wins_over_channel_sum():
+    pj = plan_json([prow("amazon", "Amazon", {"2026-01": 100.0}, series="forecast"),
+                    prow("dtc", "Spikeball.com", {"2026-01": 20.0}, series="forecast"),
+                    prow("total", "Total", {"2026-01": 999.0}, series="forecast")])
+    out = revenue_plan.build_outputs(pj, full_year_rollup(), "2026-06-01", CFG)
+    assert pva(out, "2026-01", "total")["forecast_gross"] == 999.0
+    assert pva(out, "2026-01", "amazon")["forecast_gross"] == 100.0
+
+
+def test_explicit_total_plan_row_wins_over_channel_sum_too():
+    pj = plan_json([prow("amazon", "Amazon", {"2026-01": 100.0}),
+                    prow("total", "Total", {"2026-01": 400.0})])
+    out = revenue_plan.build_outputs(pj, full_year_rollup(), "2026-06-01", CFG)
+    t = pva(out, "2026-01", "total")
+    assert (t["plan_gross"], t["variance"], t["variance_pct"]) == (400.0, -220.0, -55.0)
+    assert pva(out, "2026-01", "amazon")["plan_gross"] == 100.0
+    assert pva(out, "2026-01", "wholesale")["plan_gross"] is None
+
+
+def test_plan_output_unchanged_when_forecast_rows_present():
+    plan_rows = [prow("amazon", "Amazon", {f"2026-{m:02d}": 80.0 + m for m in range(1, 13)}),
+                 prow("dtc", "Spikeball.com", {f"2026-{m:02d}": 20.0 + m for m in range(1, 13)}),
+                 prow("wholesale", "Wholesale", {"2026-01": 0.0, "2026-03": 55.5})]
+    forecast_rows = [prow("total", "Total", {f"2026-{m:02d}": 500.0 + m for m in range(1, 13)}, series="forecast"),
+                     prow("amazon", "Amazon", {"2026-01": 77.0}, series="forecast")]
+    rollup = full_year_rollup() + [rb("2026-01", "unassigned", 3.0)]
+    without = revenue_plan.build_outputs(plan_json(plan_rows), rollup, "2026-06-15", CFG)
+    with_f = revenue_plan.build_outputs(plan_json(plan_rows + forecast_rows), rollup, "2026-06-15", CFG)
+    assert len(with_f["plan_vs_actual_month"]) == len(without["plan_vs_actual_month"]) == 12 * 6
+    for a, b in zip(without["plan_vs_actual_month"], with_f["plan_vs_actual_month"]):
+        assert {k: a[k] for k in PLAN_FIELDS} == {k: b[k] for k in PLAN_FIELDS}
+    assert all(r[k] is None for r in without["plan_vs_actual_month"] for k in FORECAST_FIELDS)
+    assert any(r["forecast_gross"] is not None for r in with_f["plan_vs_actual_month"])
+    plan_month_rows = [r for r in with_f["revenue_plan_month"] if r["series"] == "plan"]
+    assert plan_month_rows == without["revenue_plan_month"]
+    m_without, m_with = without["revenue_plan_meta"], with_f["revenue_plan_meta"]
+    for k in m_without:
+        if k not in ("series", "row_count", "forecast_available", "forecast_grain"):
+            assert m_without[k] == m_with[k], k
+
+
+@pytest.mark.parametrize("rows,available,grain", [
+    ([prow("amazon", "Amazon", {"2026-01": 1.0})], False, None),
+    ([prow("total", "Total", {"2026-01": 1.0}, series="forecast")], True, "total"),
+    ([prow("amazon", "Amazon", {"2026-01": 1.0}, series="forecast")], True, "channel"),
+    ([prow("amazon", "Amazon", {"2026-01": 1.0}, series="forecast"),
+      prow("total", "Total", {"2026-01": 1.0}, series="forecast")], True, "mixed"),
+    ([prow("total", "Total", {"2026-01": 1.0})], False, None),
+    ([prow("amazon", "Amazon", {}, series="forecast")], True, "channel"),
+])
+def test_meta_forecast_available_and_grain(rows, available, grain):
+    meta = revenue_plan.build_outputs(plan_json(rows), full_year_rollup(), "2026-06-01", CFG)["revenue_plan_meta"]
+    assert (meta["forecast_available"], meta["forecast_grain"]) == (available, grain)
+
+
+def test_meta_forecast_fields_when_plan_invalid_or_absent():
+    for bad in (None, {}, {"valid": False, "error": "x"}):
+        meta = revenue_plan.build_outputs(bad, full_year_rollup(), "2026-06-01", CFG)["revenue_plan_meta"]
+        assert (meta["forecast_available"], meta["forecast_grain"]) == (False, None)
+
+
+def test_variance_vs_forecast_rounding_and_null_rules():
+    pj = plan_json([prow("amazon", "Amazon", {"2026-01": 33.333, "2026-02": 0.0, "2026-04": 10.0}, series="forecast")],
+                   cols=("2026-01", "2026-02", "2026-03", "2026-04"))
+    rollup = full_year_rollup() + [rb("2026-01", "amazon", 0.004)]
+    out = revenue_plan.build_outputs(pj, rollup, "2026-03-10", CFG)
+    jan = pva(out, "2026-01", "amazon")
+    assert jan["forecast_gross"] == 33.33                    # 2dp money rounding
+    assert jan["variance_vs_forecast"] == 66.67              # 100.004 - 33.33 -> 2dp
+    assert jan["variance_vs_forecast_pct"] == 200.0          # 1dp
+    feb = pva(out, "2026-02", "amazon")
+    assert (feb["forecast_gross"], feb["variance_vs_forecast"], feb["variance_vs_forecast_pct"]) == (0.0, 100.0, None)
+    mar = pva(out, "2026-03", "amazon")                       # no forecast for March
+    assert (mar["forecast_gross"], mar["variance_vs_forecast"], mar["variance_vs_forecast_pct"]) == (None, None, None)
+    apr = pva(out, "2026-04", "amazon")                       # future month: forecast shown, no variance
+    assert (apr["basis"], apr["forecast_gross"], apr["variance_vs_forecast"], apr["variance_vs_forecast_pct"]) == (
+        "future", 10.0, None, None)
+    assert jan["basis"] == "no_plan" and jan["plan_gross"] is None and jan["variance"] is None
+
+
+def test_forecast_variance_null_when_month_outside_actuals_window():
+    pj = plan_json([prow("total", "Total", {"2026-01": 50.0}, series="forecast")])
+    out = revenue_plan.build_outputs(pj, [rb("2026-05", "amazon", 5.0)], "2026-06-15", CFG)
+    t = pva(out, "2026-01", "total")
+    assert (t["forecast_gross"], t["actual_gross"], t["variance_vs_forecast"]) == (50.0, None, None)
+
+
+def test_every_plan_vs_actual_row_carries_the_forecast_fields():
+    out = revenue_plan.build_outputs(plan_json([prow("amazon", "Amazon", {"2026-01": 1.0})]),
+                                     full_year_rollup(), "2026-06-01", CFG)
+    want = set(PLAN_FIELDS) | set(FORECAST_FIELDS)
+    assert all(set(r) == want for r in out["plan_vs_actual_month"])
 
 
 def test_revenue_plan_month_sorted_by_ym_then_rollup_order():
@@ -270,7 +417,7 @@ def test_meta_shape_and_year_selection():
     out = revenue_plan.build_outputs(pj, [rb("2026-09", "amazon", 1.0)], "2026-09-07", CFG)
     meta = out["revenue_plan_meta"]
     assert set(meta) == {"valid", "stale", "fetched_at_mt", "source", "year", "series", "month_columns",
-                         "row_count", "dropped_rows", "note", "error"}
+                         "row_count", "dropped_rows", "note", "error", "forecast_available", "forecast_grain"}
     assert meta["year"] == 2027 and meta["stale"] is True and meta["source"] == "Revenue Plan"
     assert meta["dropped_rows"] == [{"row": 9, "reason": "x"}] and meta["row_count"] == 1
     assert meta["note"].startswith("hello")
@@ -312,6 +459,17 @@ def test_resolve_snapshot_falls_back_to_prev_stale_and_keeps_rows():
     out = revenue_plan.resolve_snapshot({"valid": False, "error": "HTTP 500"}, prev)
     assert out["valid"] is True and out["stale"] is True and out["error"] == "HTTP 500"
     assert out["rows"] == prev["rows"] and out["fetched_at_mt"] == prev["fetched_at_mt"]
+
+
+def test_resolve_snapshot_carries_forecast_and_total_rows_like_plan_rows():
+    prev = plan_json([prow("amazon", "Amazon", {"2026-01": 1.0}),
+                      prow("total", "Total", {"2026-01": 9.0}, series="forecast")])
+    out = revenue_plan.resolve_snapshot({"valid": False, "error": "HTTP 500"}, prev)
+    assert out["stale"] is True and out["rows"] == prev["rows"]
+    built = revenue_plan.build_outputs(out, full_year_rollup(), "2026-06-01", CFG)
+    assert built["revenue_plan_meta"]["stale"] is True
+    assert built["revenue_plan_meta"]["forecast_grain"] == "total"
+    assert pva(built, "2026-01", "total")["forecast_gross"] == 9.0
 
 
 def test_resolve_snapshot_invalid_without_prev():
@@ -432,3 +590,137 @@ def test_new_output_keys_publish_as_ordinary_tabs():
     assert "revenue_plan_month" in tables and "plan_vs_actual_month" in tables
     assert "Revenue Plan" not in tables
     assert any(t.startswith("revenue_plan_meta") for t in tables)
+
+
+def test_forecast_fields_flow_through_both_publishers_without_code_change():
+    import publish_bq
+    import publish_sheet
+    out = revenue_plan.build_outputs(
+        plan_json([prow("amazon", "Amazon", {"2026-01": 1.0}),
+                   prow("total", "Total", {"2026-01": 5.0}, series="forecast")]),
+        full_year_rollup(), "2026-06-01", CFG)
+    tables = publish_sheet.build_tables(out)
+    pva_headers = publish_sheet.build_grid(tables["plan_vs_actual_month"])[0]
+    assert {"forecast_gross", "variance_vs_forecast", "variance_vs_forecast_pct"} <= set(pva_headers)
+    summary_headers = publish_sheet.build_grid(tables["revenue_plan_meta_summary"])[0]
+    assert {"forecast_available", "forecast_grain"} <= set(summary_headers)
+    assert [r["value"] for r in tables["revenue_plan_meta_series"]] == ["forecast", "plan"]
+    fields, _, _ = publish_bq.build_schema_and_order(tables["plan_vs_actual_month"])
+    by_name = {f["name"]: f["type"] for f in fields}
+    assert by_name["forecast_gross"] == "FLOAT64" and by_name["variance_vs_forecast_pct"] == "FLOAT64"
+    fields, _, _ = publish_bq.build_schema_and_order(tables["revenue_plan_meta_summary"])
+    by_name = {f["name"]: f["type"] for f in fields}
+    assert by_name["forecast_available"] == "BOOL" and by_name["forecast_grain"] == "STRING"
+
+
+# --------------------------------------------------------------------------- seed tool (forecast mode)
+
+def _seed_tool():
+    import importlib.util
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "spike", "tools", "seed_revenue_plan.py")
+    spec = importlib.util.spec_from_file_location("seed_revenue_plan", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+TAB_HEADER = ["Channel", "Series"] + [f"2026-{m:02d}" for m in range(1, 13)]
+TWELVE = [float(100 * m) for m in range(1, 13)]
+
+
+def _tab(*rows):
+    return [["note"], [], TAB_HEADER] + [list(r) for r in rows]
+
+
+def test_seed_forecast_row_appends_after_last_nonempty_row_when_absent():
+    seed = _seed_tool()
+    values = _tab(["Amazon", "Plan"] + TWELVE, ["Wholesale", "Plan"] + TWELVE, [], ["", ""])
+    row, sheet_row, action = seed.plan_forecast_row(values, TWELVE)
+    assert action == "append" and sheet_row == 6
+    assert row == ["Total", "Forecast"] + TWELVE
+
+
+def test_seed_forecast_row_updates_existing_total_forecast_in_place_case_insensitive():
+    seed = _seed_tool()
+    values = _tab(["Amazon", "Plan"] + TWELVE, [" total ", "FORECAST"] + [1.0] * 12, ["Wholesale", "Plan"] + TWELVE)
+    row, sheet_row, action = seed.plan_forecast_row(values, TWELVE)
+    assert (action, sheet_row) == ("update", 5)
+    assert row == ["Total", "Forecast"] + TWELVE
+
+
+def test_seed_forecast_row_never_targets_a_plan_row_or_total_plan_row():
+    seed = _seed_tool()
+    values = _tab(["Total", "Plan"] + TWELVE, ["Amazon", "Plan"] + TWELVE)
+    row, sheet_row, action = seed.plan_forecast_row(values, TWELVE)
+    assert (action, sheet_row) == ("append", 6)
+
+
+def test_seed_forecast_row_aligns_to_the_tabs_own_header_order():
+    seed = _seed_tool()
+    header = ["Channel", "junk", "2026-12", "Series"] + [f"2026-{m:02d}" for m in range(1, 12)]
+    values = [header, ["Amazon", "", 12.0, "Plan"] + [1.0] * 11]
+    row, sheet_row, action = seed.plan_forecast_row(values, TWELVE)
+    assert (action, sheet_row) == ("append", 3)
+    assert row[0] == "Total" and row[1] == "" and row[2] == 1200.0 and row[3] == "Forecast"
+    assert row[4:] == TWELVE[:11]
+
+
+@pytest.mark.parametrize("values,frag", [
+    ([], "no header row"),
+    ([["Amazon", "Plan"]], "no header row"),
+    ([["Channel", "2026-01"]], "no Series column"),
+    ([["Channel", "Series", "2026-01"]], "lacks month column"),
+])
+def test_seed_forecast_row_refuses_malformed_tab(values, frag):
+    seed = _seed_tool()
+    with pytest.raises(SystemExit) as e:
+        seed.plan_forecast_row(values, TWELVE)
+    assert frag in str(e.value)
+
+
+def test_seed_read_forecast_total_by_label_from_a_hidden_sheet(tmp_path):
+    import datetime
+    openpyxl = pytest.importorskip("openpyxl")
+    seed = _seed_tool()
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "2026 Forecast"
+    ws.sheet_state = "hidden"
+    ws.cell(1, 1, "2026 Forecast")
+    for m in range(1, 13):
+        ws.cell(1, m + 1, datetime.datetime(2026, m, 1))
+    ws.cell(1, 14, "Total")
+    ws.cell(2, 1, "Units")
+    for m in range(1, 13):
+        ws.cell(2, m + 1, 7)
+    ws.cell(4, 1, "Gross Revenue")
+    for m in range(1, 13):
+        ws.cell(4, m + 1, 1000 * m)
+    wb.create_sheet("Other")
+    path = tmp_path / "wb.xlsx"
+    wb.save(path)
+    months = seed.read_forecast_total(path, "2026 Forecast")
+    assert months == [float(1000 * m) for m in range(1, 13)]
+    with pytest.raises(SystemExit) as e:
+        seed.read_forecast_total(path, "2026 Forecast", row_label="Net Revenue")
+    assert "not found" in str(e.value)
+    with pytest.raises(SystemExit) as e:
+        seed.read_forecast_total(path, "Nope")
+    assert "no sheet" in str(e.value)
+
+
+def test_seed_forecast_total_guard():
+    seed = _seed_tool()
+    with pytest.raises(SystemExit):
+        seed.assert_forecast_total([1.0] * 12)
+    good = [seed.EXPECTED_FORECAST_TOTAL] + [0.0] * 11
+    seed.assert_forecast_total(good)
+
+
+def test_seed_plan_grid_unchanged():
+    seed = _seed_tool()
+    plan = {l: [1.0] * 12 for l in seed.CHANNEL_LABELS}
+    grid = seed.build_grid(plan)
+    assert grid[3] == TAB_HEADER
+    assert [r[:2] for r in grid[4:]] == [["Amazon", "Plan"], ["Spikeball.com", "Plan"], ["Wholesale", "Plan"]]
