@@ -175,3 +175,29 @@ the same as every other open-month figure on this dashboard.
 Cash flow note: the statement always foots to the actual bank movement. Shareholder distributions and other
 non-earnings equity movements, which the CFO's own workbook method does not itemize, appear on one
 "Distributions & Other Equity" line so the statement reconciles and the omission is visible.
+
+## Gross revenue and the plan line (added 2026-09-29)
+
+Every revenue figure on the dashboard is now GROSS revenue: gross sales plus tournaments plus shipping
+(accounts 40100000, 40104000, 40105000), before discounts, refunds and returns. This is the same basis the
+CFO uses in his revenue summary, and closed months tie to his channel actuals to the cent. Gross profit and
+margin keep their net basis (revenue net of discounts, refunds and returns, less COGS) and are labeled "on
+net revenue". Orders, AOV and the returns rate are unchanged. SKU revenue is line-level and is not
+comparable to the gross totals; the page says so where it appears.
+
+The monthly "Revenue by channel" chart draws a plan line from the "Revenue Plan" tab of the Spikeball
+Finance Sheet: the 2026 Original Plan by channel. The Plan select next to the chart switches between the
+total and one channel; the table under the chart shows plan, actual, variance and variance percent by
+month with quarter, year-to-date and full-year rows. The open month is month to date against its
+full-month plan and is tagged MTD. Months after the as-of month show the plan only. The chart opens on the
+plan's calendar year (January through December); the start and end month selects still change it.
+
+Editing the plan: open the "Revenue Plan" tab, keep the header row (Channel, Series, then one YYYY-MM
+column per month) and type gross dollars into the cells. Channel is Amazon, Spikeball.com or Wholesale
+(Other B2B is accepted). Series is Plan; a second row per channel with Series "Forecast" is read and kept
+for a later reforecast view but does not draw today. Blank means no plan for that month. The nightly reads
+the tab and never writes it. A row it cannot read is dropped and listed on the revenue_plan_meta tabs; if
+the header is missing the whole tab is treated as unavailable, the last good copy is used and the page
+says "Plan is stale"; with no good copy at all the plan controls hide and the page says "Plan not
+available for this run". A plan problem never blocks the rest of the refresh (checks q and r are
+informational).
