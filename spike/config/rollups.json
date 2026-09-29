@@ -14,7 +14,7 @@
     "us_region_ids": [1],
     "data_quality_region_ids": [8, 9, 10]
   },
-  "protected_tabs": ["Demand Plan"],
+  "protected_tabs": ["Demand Plan", "Revenue Plan"],
   "_protected_tabs_comment": "CFO-owned Sheet tabs the pipeline may only ever READ, never write (research/09-cfo-input-mechanism-design.md Section 3). publish_sheet.py filters these out of every write set and refuses to write anything at all if one somehow still shows up after filtering. 'CFO Inputs' (PRD-v2.md:264) joins this list only if that separate, still-DEFERRED mechanism ships.",
   "period_rule": "through_yesterday_close",
   "features": {

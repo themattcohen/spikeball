@@ -36,7 +36,7 @@ import doppler_env  # noqa: E402  (spike/routine/doppler_env.py)
 SHEETS_BASE = "https://sheets.googleapis.com/v4/spreadsheets"
 ROW_CAP = 50000
 
-DEFAULT_PROTECTED_TABS = ["Demand Plan"]
+DEFAULT_PROTECTED_TABS = ["Demand Plan", "Revenue Plan"]
 
 # Top-level output keys that carry data for a publisher-internal mechanism, not a
 # Sheet tab / BQ table of their own. bs_snapshot_append is the durable monthly V-D

@@ -60,6 +60,7 @@ import doppler_env
 import state_sync  # noqa: E402  (spike/routine/doppler_env.py)
 import refresh_gate  # noqa: E402  (spike/routine/refresh_gate.py, PRD-month-refresh.md Section 5 M5)
 from publish_sheet import get_all_pass, now_mt_iso, build_tables  # noqa: E402
+import revenue_plan  # noqa: E402  (spike/revenue_plan.py)
 import alert  # noqa: E402  (spike/routine/alert.py)
 
 # Every host the nightly pipeline touches, end to end. --diagnose checks exactly this
@@ -212,7 +213,62 @@ def fetch_demand_plan_step(args):
     return str(out_path), None
 
 
-def run_extract(args, prev_state_path, demand_plan_path=None):
+def fetch_revenue_plan_step(args):
+    """Reads the CFO-owned "Revenue Plan" tab via spike/revenue_plan.py, READ-ONLY. Returns
+    the path of the JSON extract.py should read (--revenue-plan), or None when no Sheet id
+    is available. NEVER fatal: a fetch or parse failure falls back to the last good
+    snapshot (spike/data/revenue_plan_prev.json, refreshed only from a fresh valid read)
+    flagged stale=true; with no snapshot either, an invalid marker file is written. The
+    return value and the nightly exit code are unaffected by any plan problem."""
+    sheet_id = args.sheet or os.environ.get("SPIKEBALL_FINANCE_SHEET_ID")
+    if not sheet_id:
+        print("[run_nightly] no Sheet id available (SPIKEBALL_FINANCE_SHEET_ID unset); "
+              "skipping the Revenue Plan read this run")
+        return None
+
+    out_path = SPIKE / "data" / "revenue_plan_fetched.json"
+    prev_path = SPIKE / "data" / "revenue_plan_prev.json"
+
+    def load(path):
+        try:
+            return json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    current = None
+    try:
+        if out_path.is_file():
+            out_path.unlink()
+        cmd = [sys.executable, str(SPIKE / "revenue_plan.py"), "fetch",
+               "--sheet", sheet_id, "--out", str(out_path)]
+        proc = run_step(cmd, "revenue_plan")
+        if proc.returncode == 0:
+            current = load(out_path)
+        if current is None:
+            current = {"valid": False,
+                       "error": f"revenue_plan.py fetch produced no readable output (rc={proc.returncode})"}
+    except Exception as e:  # noqa: BLE001  a plan problem must never fail the nightly
+        current = {"valid": False, "error": f"revenue_plan.py fetch crashed: {e}"}
+
+    final = revenue_plan.resolve_snapshot(current, load(prev_path) if prev_path.is_file() else None)
+    try:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(final, indent=2), encoding="utf-8")
+        if final.get("valid") and not final.get("stale"):
+            shutil.copyfile(out_path, prev_path)
+            print(f"[run_nightly] refreshed local Revenue Plan snapshot: {prev_path}")
+        elif final.get("stale"):
+            print(f"[run_nightly] REVENUE_PLAN_STALE using the snapshot read at "
+                  f"{final.get('fetched_at_mt')} (this run: {final.get('error')})")
+        else:
+            print(f"[run_nightly] WARNING Revenue Plan unavailable and no snapshot: {final.get('error')}")
+    except OSError as e:
+        print(f"[run_nightly] WARNING could not write Revenue Plan file: {e}")
+        return None
+    return str(out_path)
+
+
+def run_extract(args, prev_state_path, demand_plan_path=None, revenue_plan_path=None):
     out_path = SPIKE / "data" / "latest.json"
     state_new_path = SPIKE / "data" / "state_new.json"
     cmd = [sys.executable, str(SPIKE / "extract.py"), "--out", str(out_path)]
@@ -220,6 +276,8 @@ def run_extract(args, prev_state_path, demand_plan_path=None):
         cmd += ["--prev-state", str(prev_state_path)]
     if demand_plan_path:
         cmd += ["--demand-plan", str(demand_plan_path)]
+    if revenue_plan_path:
+        cmd += ["--revenue-plan", str(revenue_plan_path)]
     cmd += ["--write-state", str(state_new_path), "--amazon-max-minutes", "40"]
     if args.skip_amazon:
         cmd += ["--skip-amazon"]
@@ -270,7 +328,10 @@ def run_pipeline(args, trigger="nightly", request_row=""):
         return fail(4, f"Demand Plan read failed with a genuine API error (not a "
                         f"validation failure): {demand_plan_fatal}", args), False, None
 
-    extract_proc, out_path, state_new_path = run_extract(args, prev_state_path, demand_plan_path)
+    revenue_plan_path = fetch_revenue_plan_step(args)
+
+    extract_proc, out_path, state_new_path = run_extract(args, prev_state_path, demand_plan_path,
+                                                          revenue_plan_path)
 
     def extract_crash_note():
         note = ""

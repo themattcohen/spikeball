@@ -60,6 +60,19 @@ def inject_v1_compat(data, rollups_path):
     return data
 
 
+def backfill_chart_window(data):
+    """Older data files predate meta.chart_months / meta.default_range. Fill them from
+    meta.trailing_months (the chart then draws the same months it always did) and
+    change nothing when the extract already wrote them."""
+    meta = data.setdefault("meta", {})
+    trailing = meta.get("trailing_months") or []
+    if not meta.get("chart_months"):
+        meta["chart_months"] = list(trailing)
+    if not meta.get("default_range") and trailing:
+        meta["default_range"] = {"start": min(trailing), "end": max(trailing)}
+    return data
+
+
 def apply_feature_flags(data, features_csv, refresh_url):
     """PRD-month-refresh.md Section 3 "Feature flags" / Section 5 M3 deliverable 1:
     sets meta.features.<name> = True unconditionally for each name in features_csv (a
@@ -147,6 +160,7 @@ def main():
 
     data = load_json(args.data)
     data = inject_v1_compat(data, rollups_path)
+    data = backfill_chart_window(data)
     features_csv = args.features if args.features is not None else os.environ.get("SPIKEBALL_DASH_FEATURES", "")
     refresh_url = args.refresh_url if args.refresh_url is not None else os.environ.get("SPIKEBALL_REFRESH_REQUEST_URL", "")
     data = apply_feature_flags(data, features_csv, refresh_url)

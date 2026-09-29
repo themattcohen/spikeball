@@ -117,6 +117,57 @@ def check_p_demand_plan_valid(output):
     return _fail(f"Demand Plan read invalid this run ({reason}) -- no previous snapshot available")
 
 
+def check_q_gross_tie(output):
+    """Informational. pnl_by_channel_month.gross_revenue (v1 gross query) must equal
+    pnl_channel_gross_net.gross_revenue (account-grain build) to the cent for every channel-month
+    present in both, and per month the channel sum must equal the total gross of the other build.
+    A channel-month with nonzero gross on one side and no row on the other counts as a mismatch."""
+    gn = output.get("pnl_channel_gross_net") or []
+    pnl = output.get("pnl_by_channel_month") or []
+    if not gn or not pnl:
+        return _ok("pnl_channel_gross_net or pnl_by_channel_month absent -- skipped")
+    if any(r.get("gross_revenue") is None for r in pnl):
+        return _fail("pnl_by_channel_month.gross_revenue is null on at least one row (gross query failed this run)")
+    v1 = {(str(r.get("channel_id")), r["ym"]): r["gross_revenue"] for r in pnl}
+    v2 = {(str(r.get("channel_id")), r["ym"]): r["gross_revenue"] for r in gn}
+    yms = sorted({k[1] for k in v1} & {k[1] for k in v2})
+    bad = []
+    n = 0
+    for key in sorted(set(v1) | set(v2), key=lambda k: (k[1], k[0])):
+        if key[1] not in yms:
+            continue
+        a, b = v1.get(key), v2.get(key)
+        if a is None or b is None:
+            if (a or b) and abs(a or b) > TOL:
+                bad.append(f"{key[0]}/{key[1]}: v1={a} v2={b}")
+            continue
+        n += 1
+        if abs(a - b) > TOL:
+            bad.append(f"{key[0]}/{key[1]}: v1={a} v2={b}")
+    for ym in yms:
+        t1 = round(sum(v for (c, m), v in v1.items() if m == ym), 2)
+        t2 = round(sum(v for (c, m), v in v2.items() if m == ym), 2)
+        if abs(t1 - t2) > TOL:
+            bad.append(f"total/{ym}: channel sum={t1} total gross={t2}")
+    if bad:
+        return _fail(f"{len(bad)} gross mismatch(es); first 5: " + "; ".join(bad[:5]))
+    return _ok(f"gross_revenue ties on {n} channel-months and {len(yms)} monthly totals")
+
+
+def check_r_revenue_plan_ok(output):
+    """Informational. The Revenue Plan tab was read and produced plan-vs-actual rows. Like
+    check p, a CFO-input gap is not a NetSuite parity failure and never feeds v2_pass."""
+    meta = output.get("revenue_plan_meta")
+    if not meta:
+        return _fail("revenue_plan_meta absent (Revenue Plan not wired into this run)")
+    rows = output.get("plan_vs_actual_month") or []
+    if meta.get("valid") and rows:
+        return _ok(f"Revenue Plan valid: year={meta.get('year')}, {meta.get('row_count', 0)} row(s), "
+                   f"{len(rows)} plan_vs_actual_month row(s)")
+    reason = meta.get("error") or meta.get("note") or "unknown"
+    return _fail(f"Revenue Plan not usable (valid={meta.get('valid')}, plan_vs_actual rows={len(rows)}): {reason}")
+
+
 def run_checks_v2(output):
     checks = {
         "i_gross_net_reconciles": check_i_gross_net_reconciles(output),
@@ -127,4 +178,10 @@ def run_checks_v2(output):
     p_result = check_p_demand_plan_valid(output)
     checks["p_demand_plan_valid"] = p_result
     checks["demand_plan_ok"] = p_result["pass"]
+    q_result = check_q_gross_tie(output)
+    checks["q_gross_tie"] = q_result
+    checks["gross_tie_ok"] = q_result["pass"]
+    r_result = check_r_revenue_plan_ok(output)
+    checks["r_revenue_plan_ok"] = r_result
+    checks["revenue_plan_ok"] = r_result["pass"]
     return checks

@@ -164,6 +164,14 @@ VIEWS = {
         f"SELECT *, PARSE_DATE('%Y-%m', ym) AS month FROM `{p}.{d}.demand_vs_actual_plan_vs_actual`"
     ),
     "v_demand_cost_coverage": lambda p, d: f"SELECT * FROM `{p}.{d}.demand_vs_actual_cost_coverage`",
+    # Revenue Plan tab (gross revenue by channel by month, CFO-owned, read-only) and its
+    # plan-vs-actual join. Same skip-if-source-not-loaded behavior as every view above.
+    "v_revenue_plan_month": lambda p, d: (
+        f"SELECT *, PARSE_DATE('%Y-%m', ym) AS month FROM `{p}.{d}.revenue_plan_month`"
+    ),
+    "v_plan_vs_actual_month": lambda p, d: (
+        f"SELECT *, PARSE_DATE('%Y-%m', ym) AS month FROM `{p}.{d}.plan_vs_actual_month`"
+    ),
 }
 
 

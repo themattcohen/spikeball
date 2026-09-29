@@ -40,7 +40,10 @@ sync_playwright = pytest.importorskip(
 ROOT = Path(__file__).resolve().parents[1]
 MOCKUP_DIR = ROOT / "design" / "mockup"
 BUILD_PY = MOCKUP_DIR / "build.py"
-DATA_PATH = ROOT / "spike" / "data" / "latest.json"
+# SPIKEBALL_DASH_TEST_DATA points the whole module at another extract (for example
+# spike/data/latest-plan-dev.json or the real extract that carries gross revenue and the plan).
+_env_data = os.environ.get("SPIKEBALL_DASH_TEST_DATA", "").strip()
+DATA_PATH = (Path(_env_data) if Path(_env_data).is_absolute() else ROOT / _env_data) if _env_data else ROOT / "spike" / "data" / "latest.json"
 BASELINE_TEMPLATE = ROOT / "tests" / "fixtures" / "template_baseline_2026-09-08.html"
 SHOTS_DIR = MOCKUP_DIR / "shots"
 
@@ -151,6 +154,15 @@ def rollup_by_period_total(latest_data):
     raise AssertionError("rollup_by_period has no key='total' row")
 
 
+def _field(row, name):
+    """Row value for `name`; gross_revenue falls back to net revenue when an extract
+    predates the gross fields (the page does the same)."""
+    val = row.get(name)
+    if val is None and name == "gross_revenue":
+        val = row.get("revenue")
+    return val or 0.0
+
+
 def _sum_months(rows, months, fields, keyfn=None):
     """Plain Python sum of `fields` over `rows` whose 'ym' is in `months`,
     optionally grouped by keyfn(row). Mirrors template.html's sumRows()."""
@@ -160,7 +172,7 @@ def _sum_months(rows, months, fields, keyfn=None):
         for r in rows:
             if r["ym"] in months:
                 for f in fields:
-                    totals[f] += r.get(f) or 0.0
+                    totals[f] += _field(r, f)
         return totals
     out = collections.defaultdict(lambda: {f: 0.0 for f in fields})
     for r in rows:
@@ -168,7 +180,7 @@ def _sum_months(rows, months, fields, keyfn=None):
             continue
         key = keyfn(r)
         for f in fields:
-            out[key][f] += r.get(f) or 0.0
+            out[key][f] += _field(r, f)
     return out
 
 
@@ -177,7 +189,7 @@ def _sum_months(rows, months, fields, keyfn=None):
 # into one tmp_path_factory directory shared by the whole module.
 # ---------------------------------------------------------------------------
 
-def _run_build(out_path, *, template=None, features=None, refresh_url=None):
+def _run_build(out_path, *, template=None, features=None, refresh_url=None, data_path=None):
     """Invokes design/mockup/build.py exactly as documented (PRD-month-refresh.md
     Section 7 / the build agent's brief): `python build.py --data
     spike/data/latest.json --out <out> [--template ...] [--features ...]
@@ -189,7 +201,7 @@ def _run_build(out_path, *, template=None, features=None, refresh_url=None):
     baseline build, which must reproduce a build invocation with neither flag
     present). The env vars are always scrubbed from the subprocess regardless,
     so omitting a flag can never pick up an ambient value either."""
-    cmd = [sys.executable, str(BUILD_PY), "--data", str(DATA_PATH), "--out", str(out_path)]
+    cmd = [sys.executable, str(BUILD_PY), "--data", str(data_path or DATA_PATH), "--out", str(out_path)]
     if template is not None:
         cmd += ["--template", str(template)]
     if features is not None:
@@ -212,6 +224,40 @@ def build_dir(tmp_path_factory, latest_json_path):
     return tmp_path_factory.mktemp("dashboard_range_html")
 
 
+GROSS_PLAN_TOP_KEYS = ("revenue_plan_meta", "revenue_plan_month", "plan_vs_actual_month")
+GROSS_PLAN_META_KEYS = ("plan_year", "chart_months", "default_range")
+
+
+def strip_gross_and_plan(data):
+    """A copy of the extract without any gross-revenue or plan field: the data file the
+    page must still render as the legacy net-revenue page."""
+    out = json.loads(json.dumps(data))
+    for k in GROSS_PLAN_TOP_KEYS:
+        out.pop(k, None)
+    for k in GROSS_PLAN_META_KEYS:
+        out["meta"].pop(k, None)
+
+    for section in ("rollup_by_month", "pnl_by_channel_month"):
+        for r in out.get(section, []):
+            r.pop("gross_revenue", None)
+            r.pop("gross_revenue_py", None)
+    for section in ("rollup_by_period", "pnl_by_channel_period"):
+        for e in out.get(section, []):
+            e.pop("yoy_mtd_gross_pct", None)
+            e.pop("yoy_ytd_gross_pct", None)
+            for period in ("mtd", "ytd", "mtd_prior_year", "ytd_prior_year"):
+                if isinstance(e.get(period), dict):
+                    e[period].pop("gross_revenue", None)
+    return out
+
+
+@pytest.fixture(scope="module")
+def stripped_data_path(build_dir, latest_data):
+    path = build_dir / "stripped.json"
+    path.write_text(json.dumps(strip_gross_and_plan(latest_data)), encoding="utf-8")
+    return path
+
+
 @pytest.fixture(scope="module")
 def html_on_path(build_dir):
     """Both features on, fixture refresh URL -- the workhorse build for T1-T4,
@@ -222,20 +268,20 @@ def html_on_path(build_dir):
 
 
 @pytest.fixture(scope="module")
-def html_flags_off_current_path(build_dir):
+def html_flags_off_current_path(build_dir, stripped_data_path):
     """Current (edited) template.html, both flags explicitly off -- T5's
     'current build' half of the flags-off identity check."""
     out = build_dir / "off_current.html"
-    _run_build(out, features="", refresh_url="")
+    _run_build(out, features="", refresh_url="", data_path=stripped_data_path)
     return out
 
 
 @pytest.fixture(scope="module")
-def html_flags_off_baseline_path(build_dir):
+def html_flags_off_baseline_path(build_dir, stripped_data_path):
     """Verbatim pre-change template, no --features/--refresh-url flags at all
     (T5's literal build recipe for the baseline)."""
     out = build_dir / "off_baseline.html"
-    _run_build(out, template=BASELINE_TEMPLATE)
+    _run_build(out, template=BASELINE_TEMPLATE, data_path=stripped_data_path)
     return out
 
 
@@ -351,7 +397,7 @@ def test_t1_range_tie_out(browser, html_on_path, rollup_by_period_total, rollup_
         page.select_option("#range-from", "2026-01")
         page.select_option("#range-to", "2026-09")
         ytd = rollup_by_period_total["ytd"]
-        assert_close(data_raw(page, '[data-kpi="sales"]'), ytd["revenue"], CURRENCY_TOL, "T1 ytd sales")
+        assert_close(data_raw(page, '[data-kpi="sales"]'), _field(ytd, "gross_revenue"), CURRENCY_TOL, "T1 ytd sales (gross)")
         assert_close(data_raw(page, '[data-kpi="gm_dollars"]'), ytd["gp"], CURRENCY_TOL, "T1 ytd gm_dollars")
         assert_close(data_raw(page, '[data-kpi="gm_pct"]'), ytd["margin_pct"], PERCENT_TOL, "T1 ytd gm_pct")
 
@@ -359,7 +405,7 @@ def test_t1_range_tie_out(browser, html_on_path, rollup_by_period_total, rollup_
         page.select_option("#range-from", "2026-09")
         page.select_option("#range-to", "2026-09")
         mtd = rollup_by_period_total["mtd"]
-        assert_close(data_raw(page, '[data-kpi="sales"]'), mtd["revenue"], CURRENCY_TOL, "T1 mtd sales")
+        assert_close(data_raw(page, '[data-kpi="sales"]'), _field(mtd, "gross_revenue"), CURRENCY_TOL, "T1 mtd sales (gross)")
         assert_close(data_raw(page, '[data-kpi="gm_dollars"]'), mtd["gp"], CURRENCY_TOL, "T1 mtd gm_dollars")
         assert_close(data_raw(page, '[data-kpi="gm_pct"]'), mtd["margin_pct"], PERCENT_TOL, "T1 mtd gm_pct")
 
@@ -367,9 +413,9 @@ def test_t1_range_tie_out(browser, html_on_path, rollup_by_period_total, rollup_
         page.select_option("#range-from", "2026-03")
         page.select_option("#range-to", "2026-05")
         months = ["2026-03", "2026-04", "2026-05"]
-        totals = _sum_months(rollup_by_month, months, ["revenue", "gp"])
-        expected_margin = totals["gp"] / totals["revenue"] * 100
-        assert_close(data_raw(page, '[data-kpi="sales"]'), totals["revenue"], CURRENCY_TOL, "T1 Mar-May sales")
+        totals = _sum_months(rollup_by_month, months, ["revenue", "gross_revenue", "gp"])
+        expected_margin = totals["gp"] / totals["revenue"] * 100  # margin stays on NET revenue
+        assert_close(data_raw(page, '[data-kpi="sales"]'), totals["gross_revenue"], CURRENCY_TOL, "T1 Mar-May sales (gross)")
         assert_close(data_raw(page, '[data-kpi="gm_dollars"]'), totals["gp"], CURRENCY_TOL, "T1 Mar-May gm_dollars")
         assert_close(data_raw(page, '[data-kpi="gm_pct"]'), expected_margin, PERCENT_TOL, "T1 Mar-May gm_pct")
 
@@ -479,7 +525,7 @@ def test_t1f_open_month_label(browser, html_on_path, asof_date):
 
 def test_t2_channel_table_tie_out(browser, html_on_path, rollup_by_month, rollup_keys):
     months = ["2026-03", "2026-04", "2026-05"]
-    expected = _sum_months(rollup_by_month, months, ["revenue", "cogs", "gp"], keyfn=lambda r: r["key"])
+    expected = _sum_months(rollup_by_month, months, ["revenue", "gross_revenue", "cogs", "gp"], keyfn=lambda r: r["key"])
 
     with dash_page(browser) as (page, errors):
         goto(page, html_on_path, "period=custom&from=2026-03&to=2026-05")
@@ -496,7 +542,7 @@ def test_t2_channel_table_tie_out(browser, html_on_path, rollup_by_month, rollup
             dom_gp = data_raw(page, f'{row_sel} td[data-col="gp"]')
 
             exp = expected[key]
-            assert_close(dom_rev, exp["revenue"], CURRENCY_TOL, f"T2 {key} revenue")
+            assert_close(dom_rev, exp["gross_revenue"], CURRENCY_TOL, f"T2 {key} revenue (gross)")
             assert_close(dom_cogs, exp["cogs"], CURRENCY_TOL, f"T2 {key} cogs")
             assert_close(dom_gp, exp["gp"], CURRENCY_TOL, f"T2 {key} gp")
 
@@ -623,8 +669,12 @@ def test_t4_sku_tie_out(browser, html_on_path, latest_data, trailing_months, aso
 # T5 -- Preset identity
 # ===========================================================================
 
-def test_t5_preset_identity(browser, html_flags_off_current_path, html_flags_off_baseline_path, html_on_path):
+def test_t5_preset_identity(browser, html_flags_off_current_path, html_flags_off_baseline_path, html_on_path,
+                            rollup_by_period_total):
     # -- Part 1: flags-off byte identity (the hard requirement) --------------
+    # Both flags-off pages are built from the extract with every gross and plan field
+    # removed, so this proves the legacy net-revenue path is unchanged by the gross and
+    # plan work. (Gross-bearing extracts differ from the 2026-09-08 baseline on purpose.)
     with dash_page(browser) as (page, errors):
         main_texts = {}
         for period in ("mtd", "ytd"):
@@ -643,6 +693,8 @@ def test_t5_preset_identity(browser, html_flags_off_current_path, html_flags_off
     assert not errors, f"console/page errors during T5 part 1: {errors}"
 
     for period, (baseline_text, current_text) in main_texts.items():
+        # The one deliberate difference on a gross-less extract: the hero says it is net.
+        current_text = re.sub(r"(?i)(year to date sales) \(net\)", lambda m: m.group(1), current_text)
         assert baseline_text == current_text, (
             f"T5: #main innerText differs between the baseline and current flags-off builds "
             f"for period={period} (baseline len={len(baseline_text)}, current len={len(current_text)})"
@@ -684,9 +736,13 @@ def test_t5_preset_identity(browser, html_flags_off_current_path, html_flags_off
     for period in ("mtd", "ytd"):
         b = baseline_totals[period]
         c = current_totals[period]
+        # Baseline (net) sales anchor the comparison when the extract has no gross revenue;
+        # with gross revenue the page's sales are the total row's gross figure instead.
+        has_gross = rollup_by_period_total[period].get("gross_revenue") is not None
+        expected_sales = rollup_by_period_total[period]["gross_revenue"] if has_gross else b["sales"]
         assert_close(
-            c["sales"], b["sales"], BASELINE_CURRENCY_TOL,
-            f"T5 {period} sales (current data-raw vs baseline channel-table Total, "
+            c["sales"], expected_sales, BASELINE_CURRENCY_TOL,
+            f"T5 {period} sales (current data-raw vs {'gross total row' if has_gross else 'baseline channel-table Total'}, "
             f"tolerance widened to {BASELINE_CURRENCY_TOL} because the baseline text is rounded currency)",
         )
         assert_close(
@@ -1000,3 +1056,355 @@ def test_t12_screenshots(browser, html_on_path):
 
     assert not errors, f"T12: expected zero console errors across all screenshot states, got {errors}"
     assert len(written) == 4, f"T12: expected 4 screenshots, wrote {len(written)}"
+
+
+# ===========================================================================
+# Gross revenue basis + revenue plan overlay
+# ===========================================================================
+# These tests read the plan and gross fields from the extract named by
+# SPIKEBALL_DASH_TEST_DATA and skip when it does not carry them (an older extract
+# still passes every test above).
+
+@pytest.fixture(scope="module")
+def plan_data(latest_data):
+    if not latest_data.get("revenue_plan_month") or not (latest_data.get("revenue_plan_meta") or {}).get("valid"):
+        pytest.skip("extract has no valid revenue plan (set SPIKEBALL_DASH_TEST_DATA to one that does)")
+    return latest_data
+
+
+@pytest.fixture(scope="module")
+def plan_by_key_month(plan_data):
+    out = collections.defaultdict(dict)
+    for r in plan_data["revenue_plan_month"]:
+        out[r["key"]][r["ym"]] = out[r["key"]].get(r["ym"], 0.0) + r["plan_gross"]
+    return out
+
+
+@pytest.fixture(scope="module")
+def plan_total_by_month(plan_by_key_month):
+    out = collections.defaultdict(float)
+    for key_rows in plan_by_key_month.values():
+        for ym, v in key_rows.items():
+            out[ym] += v
+    return out
+
+
+@pytest.fixture(scope="module")
+def pva_by_key_month(plan_data):
+    out = collections.defaultdict(dict)
+    for r in plan_data["plan_vs_actual_month"]:
+        out[r["key"]][r["ym"]] = r
+    return out
+
+
+@pytest.fixture(scope="module")
+def asof_ym(plan_data):
+    return plan_data["meta"]["asof_date"][:7]
+
+
+@pytest.fixture(scope="module")
+def default_range_months(plan_data):
+    dr = plan_data["meta"]["default_range"]
+    return [m for m in plan_data["meta"]["chart_months"] if dr["start"] <= m <= dr["end"]]
+
+
+def _plan_points(page, plan_key):
+    return page.eval_on_selector_all(
+        f'circle.plan-pt[data-plan-key="{plan_key}"]',
+        "els => els.map(e => ({ym: e.getAttribute('data-ym'), plan: parseFloat(e.getAttribute('data-plan'))}))",
+    )
+
+
+def _table_rows(page):
+    """{data-row: {col: float|None}} for #plan-vs-actual-table."""
+    return page.evaluate(
+        """() => {
+          const out = {};
+          document.querySelectorAll('#plan-vs-actual-table tbody tr').forEach(tr => {
+            const cols = {};
+            tr.querySelectorAll('td[data-col]').forEach(td => {
+              const raw = td.getAttribute('data-raw');
+              cols[td.getAttribute('data-col')] = raw === null ? null : parseFloat(raw);
+            });
+            cols._text = tr.firstElementChild.innerText;
+            out[tr.getAttribute('data-row')] = cols;
+          });
+          return out;
+        }"""
+    )
+
+
+def test_hero_is_gross_ytd_of_total_row(browser, html_on_path, plan_data, rollup_by_period_total):
+    total = next(r for r in plan_data["pnl_by_channel_period"] if r["channel_id"] == "TOTAL")
+    ytd_gross = _field(total["ytd"], "gross_revenue")
+    with dash_page(browser) as (page, errors):
+        goto(page, html_on_path)
+        hero_value = page.inner_text("#kpi-hero .kpi-hero-value")
+        expected = page.evaluate(
+            "(v) => new Intl.NumberFormat('en-US', {style:'currency', currency:'USD', notation:'compact', maximumFractionDigits:1}).format(v)",
+            ytd_gross,
+        )
+        hero_label = page.inner_text("#kpi-hero .kpi-hero-label")
+        delta = page.inner_text("#kpi-hero .kpi-delta")
+        font_family = page.eval_on_selector("#kpi-hero .kpi-hero-value", "e => getComputedStyle(e).fontFamily")
+        numeric = page.eval_on_selector("#kpi-hero .kpi-hero-value", "e => getComputedStyle(e).fontVariantNumeric")
+    assert not errors, errors
+    assert hero_value == expected, f"hero {hero_value!r} != gross YTD of the TOTAL row {expected!r}"
+    assert hero_label.lower() == "year to date sales", hero_label
+    yoy = rollup_by_period_total.get("yoy_ytd_gross_pct")
+    if yoy is None:
+        yoy = (_field(total["ytd"], "gross_revenue") / _field(total["ytd_prior_year"], "gross_revenue") - 1) * 100
+    assert f"{abs(yoy):.1f}%" in delta, f"hero delta {delta!r} is not the gross YoY {yoy:.1f}%"
+    assert "Plex Sans" in font_family or "system-ui" in font_family, font_family
+    assert "tabular" not in numeric, f"hero must use proportional figures, got {numeric!r}"
+
+
+def test_margin_labels_say_net(browser, html_on_path, plan_data):
+    with dash_page(browser) as (page, errors):
+        goto(page, html_on_path)
+        labels = {
+            "hero": page.inner_text("#kpi-hero .kpi-hero-aside"),
+            "mtd": page.inner_text("#kpi-mtd-margin .kpi-label"),
+            "ytd": page.inner_text("#kpi-ytd-margin .kpi-label"),
+            "range_gp": page.inner_text('[data-kpi="gm_dollars"] .kpi-label'),
+            "range_gm": page.inner_text('[data-kpi="gm_pct"] .kpi-label'),
+            "table_head": page.inner_text("#channel-table thead"),
+        }
+    assert not errors, errors
+    for name in ("hero", "mtd", "ytd", "range_gp", "range_gm"):
+        assert "net revenue" in labels[name].lower(), f"{name} label does not say net: {labels[name]!r}"
+    assert "gross revenue" in labels["table_head"].lower() and "(net)" in labels["table_head"].lower()
+
+
+def test_default_range_is_plan_year(browser, html_on_path, plan_data, default_range_months):
+    chart_months = plan_data["meta"]["chart_months"]
+    with dash_page(browser) as (page, errors):
+        goto(page, html_on_path)
+        frm = page.eval_on_selector("#range-from", "e => e.value")
+        to = page.eval_on_selector("#range-to", "e => e.value")
+        options = page.eval_on_selector_all("#range-from option", "els => els.map(e => e.value)")
+        label = page.inner_text("#range-label")
+        ticks = page.eval_on_selector_all("#channel-trend-viz text.tick-label", "els => els.map(e => e.textContent)")
+    assert not errors, errors
+    year = str(plan_data["meta"]["plan_year"])
+    assert (frm, to) == (f"{year}-01", f"{year}-12"), f"default selects {(frm, to)}"
+    assert sorted(options) == sorted(chart_months), "selects must offer every chart month"
+    assert label.startswith(f"{_range_month_label(f'{year}-01')} to {_range_month_label(f'{year}-12')}"), label
+    month_ticks = [t for t in ticks if t[:3] in MONTH_ABBR]
+    assert len(month_ticks) == len(default_range_months) == 12, month_ticks
+
+
+def test_plan_line_ties_to_plan_rows(browser, html_on_path, plan_by_key_month, plan_total_by_month, default_range_months):
+    with dash_page(browser) as (page, errors):
+        goto(page, html_on_path)
+        pts = _plan_points(page, "total")
+        expected = [(m, plan_total_by_month[m]) for m in default_range_months if m in plan_total_by_month]
+        assert [p["ym"] for p in pts] == [m for m, _ in expected], "one plan point per month in range that has a plan"
+        for p, (m, v) in zip(pts, expected):
+            assert_close(p["plan"], v, CURRENCY_TOL, f"total plan point {m}")
+        assert page.eval_on_selector_all("#channel-trend-viz path.plan-line", "els => els.length") >= 1
+
+        # each channel option: the bars filter to that channel and the line becomes its plan
+        options = page.eval_on_selector_all("#channel-trend-plan-select option", "els => els.map(e => e.value)")
+        assert options[0] == "total" and sorted(options[1:]) == sorted(plan_by_key_month), options
+        for key in plan_by_key_month:
+            page.select_option("#channel-trend-plan-select", key)
+            pts = _plan_points(page, key)
+            exp = [(m, plan_by_key_month[key][m]) for m in default_range_months if m in plan_by_key_month[key]]
+            assert [p["ym"] for p in pts] == [m for m, _ in exp], key
+            for p, (m, v) in zip(pts, exp):
+                assert_close(p["plan"], v, CURRENCY_TOL, f"{key} plan point {m}")
+            bar_keys = set(page.eval_on_selector_all("#channel-trend-viz path.seg-hit", "els => els.map(e => e.getAttribute('data-key'))"))
+            assert bar_keys <= {key}, f"channel {key} selected but bars for {bar_keys} are drawn"
+            assert page.eval_on_selector_all('circle.plan-pt[data-plan-key="total"]', "els => els.length") == 0
+    assert not errors, errors
+
+
+def test_no_bars_after_asof_month(browser, html_on_path, asof_ym):
+    with dash_page(browser) as (page, errors):
+        goto(page, html_on_path)
+        bar_months = set(page.eval_on_selector_all("#channel-trend-viz path.seg-hit", "els => els.map(e => e.getAttribute('data-ym'))"))
+        plan_months = {p["ym"] for p in _plan_points(page, "total")}
+        mtd_marks = page.eval_on_selector_all("#channel-trend-viz text[data-mtd]", "els => els.map(e => e.textContent)")
+    assert not errors, errors
+    assert bar_months and max(bar_months) <= asof_ym, f"bars drawn after the as-of month {asof_ym}: {sorted(bar_months)}"
+    assert any(m > asof_ym for m in plan_months), "plan line must continue past the as-of month"
+    assert mtd_marks == ["MTD"], f"expected one MTD marker under the as-of month, got {mtd_marks}"
+
+
+def test_prior_year_line_and_legend(browser, html_on_path, plan_data):
+    with dash_page(browser) as (page, errors):
+        goto(page, html_on_path)
+        assert page.eval_on_selector_all("#channel-trend-viz path[stroke-dasharray]", "els => els.length") == 0
+        page.click("#channel-trend-pytoggle")
+        dashed = page.eval_on_selector_all("#channel-trend-viz path[stroke-dasharray]", "els => els.length")
+        legend = page.inner_text("#channel-trend-legend")
+        plan_dash = page.eval_on_selector("#channel-trend-viz path.plan-line", "e => getComputedStyle(e).strokeDasharray")
+    assert not errors, errors
+    assert dashed >= 1, "prior-year dashed line missing"
+    assert "Plan" in legend and "Prior year" in legend
+    assert plan_dash in ("none", ""), f"plan line must be solid, got dasharray {plan_dash!r}"
+
+
+def test_tooltip_rows(browser, html_on_path, plan_data):
+    with dash_page(browser) as (page, errors):
+        goto(page, html_on_path)
+        hit = page.locator("#channel-trend-viz svg rect[fill='transparent']")
+        hit.scroll_into_view_if_needed()
+        box = hit.bounding_box()
+        page.mouse.move(box["x"] + box["width"] * 0.30, box["y"] + box["height"] / 2)
+        text = page.inner_text("#tooltip")
+        # a month after the as-of month: plan only
+        page.mouse.move(box["x"] + box["width"] * 0.95, box["y"] + box["height"] / 2)
+        future_text = page.inner_text("#tooltip")
+    assert not errors, errors
+    for name in ("Plan", "Actual", "Variance", "Variance %"):
+        assert name in text, f"tooltip lacks {name}: {text!r}"
+    assert "Actual" in future_text and "n/a" in future_text
+
+
+def test_plan_table_foots_and_ties(browser, html_on_path, plan_data, pva_by_key_month, plan_by_key_month,
+                                   plan_total_by_month, asof_ym, default_range_months):
+    year = str(plan_data["meta"]["plan_year"])
+    with dash_page(browser) as (page, errors):
+        goto(page, html_on_path)
+        for key in ["total"] + sorted(plan_by_key_month):
+            page.select_option("#channel-trend-plan-select", key)
+            rows = _table_rows(page)
+            months = [r for r in rows if r.startswith("month:")]
+            assert [r[6:] for r in months] == default_range_months, key
+            # every month row ties to plan_vs_actual_month
+            for r in months:
+                ym = r[6:]
+                src = pva_by_key_month[key][ym]
+                got = rows[r]
+                for col, field in (("plan", "plan_gross"), ("actual", "actual_gross"), ("variance", "variance"), ("var_pct", "variance_pct")):
+                    if src[field] is None:
+                        assert got[col] is None, f"{key} {ym} {col} should be blank, got {got[col]}"
+                    else:
+                        assert_close(got[col], src[field], 0.05 if col == "var_pct" else CURRENCY_TOL, f"{key} {ym} {col}")
+                if src["basis"] == "future":
+                    assert got["actual"] is None and got["variance"] is None
+                if src["basis"] == "open":
+                    assert "MTD" in got["_text"], f"open month {ym} lacks the MTD tag"
+            # YTD row = sum of the actual and plan rows through the as-of month
+            through = [r for r in months if r[6:] <= asof_ym and r[6:].startswith(year)]
+            ytd = rows["ytd"]
+            assert_close(ytd["actual"], sum(rows[r]["actual"] or 0.0 for r in through), CURRENCY_TOL, f"{key} YTD actual")
+            assert_close(ytd["plan"], sum(rows[r]["plan"] or 0.0 for r in through), CURRENCY_TOL, f"{key} YTD plan")
+            assert_close(ytd["variance"], ytd["actual"] - ytd["plan"], CURRENCY_TOL, f"{key} YTD variance")
+            # full-year plan = sum of every plan row of the year
+            fy_expected = sum(plan_total_by_month.values()) if key == "total" else sum(plan_by_key_month[key].values())
+            assert_close(rows["fy"]["plan"], fy_expected, CURRENCY_TOL, f"{key} full-year plan")
+            assert rows["fy"]["actual"] is None
+            # quarter subtotals foot to their months
+            for q in range(1, 5):
+                qrow = rows.get(f"quarter:{year}-Q{q}")
+                assert qrow is not None, f"{key} Q{q} subtotal missing for a range holding the whole year"
+                qm = [f"month:{year}-{m:02d}" for m in range(3 * q - 2, 3 * q + 1)]
+                assert_close(qrow["plan"], sum(rows[m]["plan"] or 0.0 for m in qm), CURRENCY_TOL, f"{key} Q{q} plan")
+                if any(rows[m]["actual"] is not None for m in qm):
+                    assert_close(qrow["actual"], sum(rows[m]["actual"] or 0.0 for m in qm), CURRENCY_TOL, f"{key} Q{q} actual")
+                else:
+                    assert qrow["actual"] is None
+        # total actual equals the hero's population: all keys incl other_b2b and unassigned
+        page.select_option("#channel-trend-plan-select", "total")
+        rows = _table_rows(page)
+        total_row = next(r for r in plan_data["pnl_by_channel_period"] if r["channel_id"] == "TOTAL")
+        assert_close(rows["ytd"]["actual"], _field(total_row["ytd"], "gross_revenue"), 1.0, "table YTD actual equals hero total")
+    assert not errors, errors
+
+
+def test_table_toggle_still_works(browser, html_on_path, plan_data, default_range_months):
+    with dash_page(browser) as (page, errors):
+        goto(page, html_on_path)
+        page.click("#channel-trend-toggle")
+        assert page.is_hidden("#channel-trend-viz")
+        rows = page.eval_on_selector_all("#channel-trend-table tbody tr", "els => els.length")
+        assert rows == len(default_range_months)
+        page.click("#channel-trend-toggle")
+        assert page.is_visible("#channel-trend-viz svg")
+    assert not errors, errors
+
+
+def test_range_change_redraws_chart(browser, html_on_path, plan_data):
+    year = str(plan_data["meta"]["plan_year"])
+    with dash_page(browser) as (page, errors):
+        goto(page, html_on_path)
+        page.select_option("#range-from", f"{year}-03")
+        page.select_option("#range-to", f"{year}-06")
+        yms = [p["ym"] for p in _plan_points(page, "total")]
+        table = _table_rows(page)
+    assert not errors, errors
+    assert yms == [f"{year}-{m:02d}" for m in (3, 4, 5, 6)]
+    assert len([r for r in table if r.startswith("month:")]) == 4
+    assert [r for r in table if r.startswith("quarter:")] == [f"quarter:{year}-Q2"], "only quarters fully inside the range get a subtotal"
+
+
+def test_sku_caption_present(browser, html_on_path, plan_data):
+    with dash_page(browser) as (page, errors):
+        goto(page, html_on_path)
+        cap = page.inner_text("#sku-basis-note")
+    assert not errors, errors
+    assert "line-level" in cap and "not comparable" in cap and "gross" in cap
+
+
+def test_plan_controls_hidden_without_plan_keys(browser, build_dir, stripped_data_path):
+    out = build_dir / "no_plan_keys.html"
+    _run_build(out, features="range_selector,refresh_control", refresh_url=FIXTURE_REFRESH_URL, data_path=stripped_data_path)
+    with dash_page(browser) as (page, errors):
+        goto(page, out)
+        assert page.is_hidden("#channel-trend-plan-wrap")
+        assert page.is_hidden("#plan-unavailable-note")
+        assert page.is_hidden("#plan-vs-actual-wrap")
+        assert page.eval_on_selector_all("circle.plan-pt", "els => els.length") == 0
+        hero_label = page.inner_text("#kpi-hero .kpi-hero-label")
+        bars = page.eval_on_selector_all("#channel-trend-viz path.seg-hit", "els => els.length")
+        ticks = [t for t in page.eval_on_selector_all("#channel-trend-viz text.tick-label", "els => els.map(e => e.textContent)") if t[:3] in MONTH_ABBR]
+    assert not errors, errors
+    assert hero_label.lower() == "year to date sales (net)"
+    assert bars > 0 and len(ticks) == 13, "legacy page draws the 13 trailing months"
+
+
+@pytest.mark.parametrize("stale, suffix", [(False, ""), (True, " (stale)")])
+def test_plan_invalid_shows_note_and_rest_renders(browser, build_dir, latest_data, plan_data, stale, suffix):
+    data = json.loads(json.dumps(latest_data))
+    data["revenue_plan_meta"]["valid"] = False
+    data["revenue_plan_meta"]["stale"] = stale
+    data["revenue_plan_month"] = []
+    data["plan_vs_actual_month"] = []
+    src = build_dir / f"plan_invalid_{stale}.json"
+    src.write_text(json.dumps(data), encoding="utf-8")
+    out = build_dir / f"plan_invalid_{stale}.html"
+    _run_build(out, features="range_selector,refresh_control", refresh_url=FIXTURE_REFRESH_URL, data_path=src)
+    with dash_page(browser) as (page, errors):
+        goto(page, out)
+        assert page.is_hidden("#channel-trend-plan-wrap")
+        assert page.is_hidden("#plan-vs-actual-wrap")
+        note = page.inner_text("#plan-unavailable-note")
+        bars = page.eval_on_selector_all("#channel-trend-viz path.seg-hit", "els => els.length")
+        hero = page.inner_text("#kpi-hero .kpi-hero-label")
+        channel_rows = page.eval_on_selector_all("#channel-table tbody tr", "els => els.length")
+    assert not errors, errors
+    assert note == "Plan not available for this run" + suffix
+    assert bars > 0 and channel_rows > 1
+    assert hero.lower() == "year to date sales"  # gross figures are still present
+
+
+def test_plan_screenshots(browser, html_on_path, plan_data):
+    SHOTS_DIR.mkdir(parents=True, exist_ok=True)
+    written = []
+    with dash_page(browser) as (page, errors):
+        goto(page, html_on_path)
+        page.add_style_tag(content=".section-nav{position:static !important}")
+        for width, height, label in ((1440, 900, "1440x900"), (390, 844, "390x844")):
+            page.set_viewport_size({"width": width, "height": height})
+            for theme in ("light", "dark"):
+                page.evaluate("(t) => document.documentElement.setAttribute('data-theme', t)", theme)
+                page.wait_for_timeout(80)
+                out_path = SHOTS_DIR / f"plan-{label}-{theme}.png"
+                page.locator("#channel-section .chart-card").screenshot(path=str(out_path))
+                assert out_path.is_file() and out_path.stat().st_size > 0
+                written.append(out_path)
+    assert not errors, errors
+    assert len(written) == 4

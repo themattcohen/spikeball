@@ -47,7 +47,7 @@ from _lib import SuiteQLError, fnum, load_env, suiteql, try_suiteql
 from checks import run_checks
 from amazon_orders import run_amazon_orders
 # v2 (actual-only) sections live in isolated modules so this file's v1 logic is unchanged.
-from extract_v2 import (fetch_accounts, build_pnl_by_account_month, build_pnl_channel_gross_net,
+from extract_v2 import (PNL_MAP, fetch_accounts, build_pnl_by_account_month, build_pnl_channel_gross_net,
                         build_ebitda_month, build_cf_month, build_ar_aging, build_ap_aging,
                         build_open_orders, build_item_cost, build_sku_sales_month,
                         build_demand_vs_actual)
@@ -390,6 +390,101 @@ def income_total_by_month(env, start, end):
     raise RuntimeError(f"income_total_by_month({start}..{end}) returned an empty aggregate 3 times (silent-empty NetSuite failure); last error: {last_err}")
 
 
+# Gross revenue = Income postings on the gross component accounts only (gross sales, tournaments,
+# shipping; spike/config/pnl_map.json gross_component_labels), sign-flipped like `revenue`. Net
+# `revenue` above is untouched. These queries are additive: a failure here must never take down
+# the net P&L sections, so callers catch the error and emit gross_revenue = null.
+GROSS_ACCTNUMBERS = tuple(str(n) for n in PNL_MAP["gross_component_labels"])
+
+
+def _gross_acct_filter():
+    return "a.acctnumber IN (" + ",".join(f"'{n}'" for n in GROSS_ACCTNUMBERS) + ")"
+
+
+def _suiteql_nonempty(env, sql, label):
+    """Run an aggregate that can never be genuinely empty; retry the silent-empty NetSuite
+    failure (see income_total) and raise after 3 attempts rather than fabricate zeros."""
+    last_err = None
+    for attempt in range(3):
+        try:
+            rows = suiteql(env, sql)
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+            rows = []
+        if rows:
+            return rows
+        time.sleep(5 * (attempt + 1))
+    raise RuntimeError(f"{label} returned an empty aggregate 3 times (silent-empty NetSuite failure); last error: {last_err}")
+
+
+def gross_by_channel_month(env, start, end):
+    sql = f"""
+        SELECT TO_CHAR(t.trandate,'YYYY-MM') AS ym, tl.cseg_appf_channel AS chan, SUM(ai.amount) AS amt
+        FROM transactionaccountingline ai
+        JOIN transactionline tl ON tl.transaction = ai.transaction AND tl.id = ai.transactionline
+        JOIN transaction t ON t.id = ai.transaction
+        JOIN account a ON a.id = ai.account
+        WHERE ai.posting = 'T' AND a.accttype = 'Income' AND {_gross_acct_filter()}
+          AND t.trandate >= TO_DATE('{start}','YYYY-MM-DD') AND t.trandate <= TO_DATE('{end}','YYYY-MM-DD')
+        GROUP BY TO_CHAR(t.trandate,'YYYY-MM'), tl.cseg_appf_channel
+        ORDER BY TO_CHAR(t.trandate,'YYYY-MM'), tl.cseg_appf_channel
+    """
+    return _suiteql_nonempty(env, sql, f"gross_by_channel_month({start}..{end})")
+
+
+def gross_by_channel(env, start, end):
+    sql = f"""
+        SELECT tl.cseg_appf_channel AS chan, SUM(ai.amount) AS amt
+        FROM transactionaccountingline ai
+        JOIN transactionline tl ON tl.transaction = ai.transaction AND tl.id = ai.transactionline
+        JOIN transaction t ON t.id = ai.transaction
+        JOIN account a ON a.id = ai.account
+        WHERE ai.posting = 'T' AND a.accttype = 'Income' AND {_gross_acct_filter()}
+          AND t.trandate >= TO_DATE('{start}','YYYY-MM-DD') AND t.trandate <= TO_DATE('{end}','YYYY-MM-DD')
+        GROUP BY tl.cseg_appf_channel
+    """
+    return _suiteql_nonempty(env, sql, f"gross_by_channel({start}..{end})")
+
+
+def _gross_month_matrix(rows):
+    """{(ym, channel_id|None): gross_revenue} from gross_by_channel_month rows (sign-flipped)."""
+    out = {}
+    for r in rows:
+        key = (r["ym"], to_int_or_none(r.get("chan")))
+        out[key] = out.get(key, 0.0) + -fnum(r["amt"])
+    return out
+
+
+def _gross_channel_map(rows):
+    """{channel_id|None: gross_revenue} from gross_by_channel rows (sign-flipped)."""
+    out = {}
+    for r in rows:
+        chan = to_int_or_none(r.get("chan"))
+        out[chan] = out.get(chan, 0.0) + -fnum(r["amt"])
+    return out
+
+
+def _try_gross(label, fn):
+    """Additive gross query: return rows, or None (with a stderr note) on any failure."""
+    try:
+        return fn()
+    except Exception as e:  # noqa: BLE001
+        print(f"[extract] WARNING: {label} failed, gross_revenue will be null: {e}", file=sys.stderr)
+        return None
+
+
+def _sum_gross(values):
+    """Sum gross values; None when any input is None (gross unavailable)."""
+    vals = list(values)
+    if any(v is None for v in vals):
+        return None
+    return sum(vals)
+
+
+def _round_opt(v):
+    return round(v, 2) if v is not None else None
+
+
 def region_income(env, channel_id, start, end):
     sql = f"""
         SELECT tl.cseg_appf_region AS reg, SUM(ai.amount) AS amt, COUNT(DISTINCT t.id) AS ntxn
@@ -459,6 +554,11 @@ def build_pnl_by_channel_month(env, D, channels):
     cogs_rows = cogs_by_channel_month(env, D["trailing_start"], D["asof"])
     py_inc_rows = income_by_channel_month(env, D["py_trailing_start"], D["py_asof"])
     py_cogs_rows = cogs_by_channel_month(env, D["py_trailing_start"], D["py_asof"])
+    g_rows = _try_gross("gross_by_channel_month", lambda: gross_by_channel_month(env, D["trailing_start"], D["asof"]))
+    py_g_rows = _try_gross("gross_by_channel_month (prior year)",
+                           lambda: gross_by_channel_month(env, D["py_trailing_start"], D["py_asof"]))
+    g_matrix = _gross_month_matrix(g_rows) if g_rows is not None else None
+    py_g_matrix = _gross_month_matrix(py_g_rows) if py_g_rows is not None else None
 
     matrix = {}
     for r in inc_rows:
@@ -497,8 +597,11 @@ def build_pnl_by_channel_month(env, D, channels):
                 "margin_pct": round(margin, 2) if margin is not None else None,
                 "ntxn": e["ntxn"],
                 "revenue_py": round(py_e["revenue"], 2), "cogs_py": round(py_e["cogs"], 2),
+                "gross_revenue": _round_opt(g_matrix.get((ym, c["id"]), 0.0)) if g_matrix is not None else None,
+                "gross_revenue_py": _round_opt(py_g_matrix.get((py_ym, c["id"]), 0.0)) if py_g_matrix is not None else None,
             })
-    return out, len(inc_rows) + len(cogs_rows) + len(py_inc_rows) + len(py_cogs_rows)
+    return out, (len(inc_rows) + len(cogs_rows) + len(py_inc_rows) + len(py_cogs_rows)
+                 + len(g_rows or []) + len(py_g_rows or []))
 
 
 def build_pnl_by_channel_period(env, D, channels):
@@ -509,11 +612,14 @@ def build_pnl_by_channel_period(env, D, channels):
         "ytd_prior_year": (D["prior_ytd_start"], D["prior_ytd_end"]),
     }
     per_window = {}
+    gross_by_chan = {}
     total_rows = 0
     for wname, (s, e) in windows.items():
         inc_rows = income_by_channel(env, s, e)
         cogs_rows = cogs_by_channel(env, s, e)
-        total_rows += len(inc_rows) + len(cogs_rows)
+        g_rows = _try_gross(f"gross_by_channel[{wname}]", lambda s=s, e=e: gross_by_channel(env, s, e))
+        gross_by_chan[wname] = _gross_channel_map(g_rows) if g_rows is not None else None
+        total_rows += len(inc_rows) + len(cogs_rows) + len(g_rows or [])
         agg = {}
         for r in inc_rows:
             chan = to_int_or_none(r.get("chan"))
@@ -527,19 +633,25 @@ def build_pnl_by_channel_period(env, D, channels):
 
     chan_list = channels + [{"id": None, "name": "Unassigned"}]
     out = []
-    totals = {wname: {"revenue": 0.0, "cogs": 0.0} for wname in windows}
+    totals = {wname: {"revenue": 0.0, "cogs": 0.0, "gross": 0.0 if gross_by_chan[wname] is not None else None}
+              for wname in windows}
     for c in chan_list:
         row = {"channel_id": c["id"], "channel": c["name"]}
         for wname in windows:
             e = per_window[wname].get(c["id"], {"revenue": 0.0, "cogs": 0.0})
             gp = e["revenue"] - e["cogs"]
             margin = (gp / e["revenue"] * 100) if e["revenue"] else None
+            gmap = gross_by_chan[wname]
+            gross = gmap.get(c["id"], 0.0) if gmap is not None else None
             row[wname] = {
                 "revenue": round(e["revenue"], 2), "cogs": round(e["cogs"], 2),
                 "gp": round(gp, 2), "margin_pct": round(margin, 2) if margin is not None else None,
+                "gross_revenue": _round_opt(gross),
             }
             totals[wname]["revenue"] += e["revenue"]
             totals[wname]["cogs"] += e["cogs"]
+            if gross is not None:
+                totals[wname]["gross"] += gross
         out.append(row)
 
     total_row = {"channel_id": "TOTAL", "channel": "TOTAL"}
@@ -550,6 +662,7 @@ def build_pnl_by_channel_period(env, D, channels):
         total_row[wname] = {
             "revenue": round(rev, 2), "cogs": round(cogs, 2),
             "gp": round(gp, 2), "margin_pct": round(margin, 2) if margin is not None else None,
+            "gross_revenue": _round_opt(totals[wname]["gross"]),
         }
     out.append(total_row)
     return out, total_rows
@@ -1182,17 +1295,26 @@ def build_t5_sentinels(env, D, sku_sales_result):
 # owner rules; no code change (PRD Section 5, E3).
 # ---------------------------------------------------------------------------
 
-def _window_math(rev, cogs):
+def _window_math(rev, cogs, gross=None):
     gp = rev - cogs
     margin = (gp / rev * 100) if rev else None
     return {"revenue": round(rev, 2), "cogs": round(cogs, 2), "gp": round(gp, 2),
-            "margin_pct": round(margin, 2) if margin is not None else None}
+            "margin_pct": round(margin, 2) if margin is not None else None,
+            "gross_revenue": _round_opt(gross)}
 
 
 def _yoy_pct(cur, py):
     if py["revenue"]:
         return round((cur["revenue"] - py["revenue"]) / abs(py["revenue"]) * 100, 2)
     return None
+
+
+def _yoy_gross_pct(cur, py):
+    """Same shape as _yoy_pct on gross_revenue; null when the prior-year gross is 0 or unavailable."""
+    cur_g, py_g = cur.get("gross_revenue"), py.get("gross_revenue")
+    if cur_g is None or not py_g:
+        return None
+    return round((cur_g - py_g) / abs(py_g) * 100, 2)
 
 
 def build_rollup_by_period(pnl_period_rows, rollups):
@@ -1209,12 +1331,14 @@ def build_rollup_by_period(pnl_period_rows, rollups):
 
     def sum_window(channel_ids, wname):
         rev = cogs = 0.0
+        gross_parts = []
         for cid in channel_ids:
             r = by_id.get(cid)
             if r:
                 rev += r[wname]["revenue"]
                 cogs += r[wname]["cogs"]
-        return _window_math(rev, cogs)
+                gross_parts.append(r[wname].get("gross_revenue"))
+        return _window_math(rev, cogs, _sum_gross(gross_parts))
 
     out = []
     for g in rollups["groups"]:
@@ -1226,12 +1350,14 @@ def build_rollup_by_period(pnl_period_rows, rollups):
             "mtd_prior_year": windows["mtd_prior_year"], "ytd_prior_year": windows["ytd_prior_year"],
             "yoy_mtd_pct": _yoy_pct(windows["mtd"], windows["mtd_prior_year"]),
             "yoy_ytd_pct": _yoy_pct(windows["ytd"], windows["ytd_prior_year"]),
+            "yoy_mtd_gross_pct": _yoy_gross_pct(windows["mtd"], windows["mtd_prior_year"]),
+            "yoy_ytd_gross_pct": _yoy_gross_pct(windows["ytd"], windows["ytd_prior_year"]),
             "show_margin": g.get("show_margin", True), "margin_note": g.get("margin_note"),
         })
 
     u = rollups["unassigned"]
     r = by_id.get(None)
-    zero = {"revenue": 0.0, "cogs": 0.0, "gp": 0.0, "margin_pct": None}
+    zero = {"revenue": 0.0, "cogs": 0.0, "gp": 0.0, "margin_pct": None, "gross_revenue": 0.0}
     u_windows = {
         w: (r[w] if r else zero) for w in ("mtd", "ytd", "mtd_prior_year", "ytd_prior_year")
     }
@@ -1241,6 +1367,8 @@ def build_rollup_by_period(pnl_period_rows, rollups):
         "mtd_prior_year": u_windows["mtd_prior_year"], "ytd_prior_year": u_windows["ytd_prior_year"],
         "yoy_mtd_pct": _yoy_pct(u_windows["mtd"], u_windows["mtd_prior_year"]),
         "yoy_ytd_pct": _yoy_pct(u_windows["ytd"], u_windows["ytd_prior_year"]),
+        "yoy_mtd_gross_pct": _yoy_gross_pct(u_windows["mtd"], u_windows["mtd_prior_year"]),
+        "yoy_ytd_gross_pct": _yoy_gross_pct(u_windows["ytd"], u_windows["ytd_prior_year"]),
         "show_margin": True, "margin_note": None,
     })
 
@@ -1250,6 +1378,8 @@ def build_rollup_by_period(pnl_period_rows, rollups):
         "mtd_prior_year": total_row["mtd_prior_year"], "ytd_prior_year": total_row["ytd_prior_year"],
         "yoy_mtd_pct": _yoy_pct(total_row["mtd"], total_row["mtd_prior_year"]),
         "yoy_ytd_pct": _yoy_pct(total_row["ytd"], total_row["ytd_prior_year"]),
+        "yoy_mtd_gross_pct": _yoy_gross_pct(total_row["mtd"], total_row["mtd_prior_year"]),
+        "yoy_ytd_gross_pct": _yoy_gross_pct(total_row["ytd"], total_row["ytd_prior_year"]),
         "show_margin": True, "margin_note": None,
     })
 
@@ -1282,12 +1412,15 @@ def build_rollup_by_month(pnl_month_rows, rollups):
     for ym in yms:
         for g in groups:
             rev = cogs = rev_py = 0.0
+            gross_parts, gross_py_parts = [], []
             for cid in g["channel_ids"]:
                 r = idx.get((ym, cid))
                 if r:
                     rev += r["revenue"]
                     cogs += r["cogs"]
                     rev_py += r.get("revenue_py") or 0.0
+                    gross_parts.append(r.get("gross_revenue"))
+                    gross_py_parts.append(r.get("gross_revenue_py"))
             gp = rev - cogs
             margin = (gp / rev * 100) if rev else None
             out.append({
@@ -1295,8 +1428,56 @@ def build_rollup_by_month(pnl_month_rows, rollups):
                 "revenue": round(rev, 2), "cogs": round(cogs, 2), "gp": round(gp, 2),
                 "margin_pct": round(margin, 2) if margin is not None else None,
                 "revenue_py": round(rev_py, 2),
+                "gross_revenue": _round_opt(_sum_gross(gross_parts)),
+                "gross_revenue_py": _round_opt(_sum_gross(gross_py_parts)),
             })
     return out, len(out)
+
+
+# ---------------------------------------------------------------------------
+# Revenue plan wiring: revenue_plan.py (fetched by run_nightly, never here) turns the CFO's
+# protected "Revenue Plan" tab into plan rows and plan-vs-actual gross rows. Guarded so a
+# module error can never fail the nightly.
+# ---------------------------------------------------------------------------
+
+def _empty_revenue_plan_outputs(note, error=None):
+    return {
+        "revenue_plan_meta": {
+            "valid": False, "stale": False, "fetched_at_mt": None, "source": "Revenue Plan",
+            "year": None, "series": ["plan"], "month_columns": [], "row_count": 0,
+            "dropped_rows": [], "note": note, "error": error,
+        },
+        "revenue_plan_month": [],
+        "plan_vs_actual_month": [],
+    }
+
+
+def build_revenue_plan_outputs(plan_json, rollup_by_month, asof_date_str, rollups_cfg):
+    try:
+        import revenue_plan
+        out = revenue_plan.build_outputs(plan_json, rollup_by_month or [], asof_date_str, rollups_cfg)
+        for k in ("revenue_plan_meta", "revenue_plan_month", "plan_vs_actual_month"):
+            if k not in out:
+                raise KeyError(f"revenue_plan.build_outputs result missing {k}")
+        return out
+    except Exception as e:  # noqa: BLE001
+        print(f"REVENUE_PLAN_BUILD_ERROR {e}")
+        return _empty_revenue_plan_outputs("revenue plan build failed; see error", error=str(e))
+
+
+def derive_chart_meta(trailing_months, revenue_plan_meta):
+    """(plan_year, chart_months, default_range) for meta. With a valid plan the chart spans the
+    union of trailing months and the plan year's 12 months and defaults to Jan..Dec of the plan
+    year; otherwise it is the trailing window."""
+    trailing = list(trailing_months)
+    meta = revenue_plan_meta or {}
+    year = meta.get("year")
+    plan_year = int(year) if year is not None else None
+    if meta.get("valid") and plan_year is not None:
+        plan_months = [f"{plan_year}-{m:02d}" for m in range(1, 13)]
+        return (plan_year, sorted(set(trailing) | set(plan_months)),
+                {"start": plan_months[0], "end": plan_months[-1]})
+    return plan_year, sorted(trailing), {"start": trailing[0], "end": trailing[-1]}
 
 
 def build_write_state(output: dict) -> dict:
@@ -1413,6 +1594,10 @@ def main():
                          help="Path to the parsed Demand Plan JSON written by demand_plan.py "
                               "(run_nightly.py wires this in; never fetched by this script itself). "
                               "Absent or unreadable degrades demand_vs_actual to an empty plan side.")
+    parser.add_argument("--revenue-plan", default=None,
+                         help="Path to the parsed Revenue Plan JSON written by run_nightly.py's fetch step "
+                              "(never fetched by this script itself). Absent or unreadable yields "
+                              "revenue_plan_meta.valid = false and empty plan rows.")
     parser.add_argument("--recheck", default=None,
                          help="Fast path: re-run only meta.checks (plus the small T5 sentinel queries) "
                               "against an EXISTING output JSON at PATH, without re-pulling any of the "
@@ -1643,6 +1828,19 @@ def main():
             print(f"[extract] WARNING: --demand-plan {dp_path} does not exist", file=sys.stderr)
     demand_plan_meta = {k: v for k, v in (demand_plan_data or {}).items() if k != "rows"} or None
 
+    revenue_plan_data = None
+    if args.revenue_plan:
+        rp_path = Path(args.revenue_plan)
+        if rp_path.exists():
+            try:
+                revenue_plan_data = json.loads(rp_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as e:
+                print(f"[extract] WARNING: --revenue-plan {rp_path} unreadable: {e}", file=sys.stderr)
+        else:
+            print(f"[extract] WARNING: --revenue-plan {rp_path} does not exist", file=sys.stderr)
+    rp_out = build_revenue_plan_outputs(revenue_plan_data, rollup_by_month, D["asof"], rollups)
+    plan_year, chart_months, default_range = derive_chart_meta(D["trailing_months"], rp_out["revenue_plan_meta"])
+
     sku_sales_month = run("sku_sales_month", lambda: build_sku_sales_month(env, D))
     demand_vs_actual = run("demand_vs_actual",
                            lambda: build_demand_vs_actual(demand_plan_data, sku_sales_month, item_cost))
@@ -1659,6 +1857,9 @@ def main():
             "prior_year_mtd": [D["prior_mtd_start"], D["prior_mtd_end"]],
             "prior_year_ytd": [D["prior_ytd_start"], D["prior_ytd_end"]],
             "trailing_months": D["trailing_months"],
+            "plan_year": plan_year,
+            "chart_months": chart_months,
+            "default_range": default_range,
             "source_account": "4201313",
             "known_artifacts": KNOWN_ARTIFACTS,
             "features": rollups.get("features", {}),
@@ -1693,6 +1894,9 @@ def main():
         "open_orders": open_orders or [],
         "item_cost": item_cost or [],
         "sku_sales_month": sku_sales_month or [],
+        "revenue_plan_meta": rp_out["revenue_plan_meta"],
+        "revenue_plan_month": rp_out["revenue_plan_month"],
+        "plan_vs_actual_month": rp_out["plan_vs_actual_month"],
         "demand_plan_meta": demand_plan_meta or {},
         "demand_vs_actual": demand_vs_actual or {"plan_vs_actual": [], "cost_coverage": []},
     }
