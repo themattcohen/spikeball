@@ -1441,17 +1441,15 @@ function chartWindow(){
   if (!PLAN_OK) return TRAILING_MONTHS;
   return RANGE_ON ? currentRangeMonths() : defaultRangeMonths();
 }
-/* One series' value for one month: key is 'total' or a rollup key. The total is the series' explicit
-   'total' row when it has one (a month that row leaves blank is null), else the sum of its channel rows.
-   null when no row covers it. */
+/* One series' value for one month: key is 'total' or a rollup key. The total follows the reader's
+   per-month rule (spike/revenue_plan.py _series_total, spike/CONTRACT.md): the explicit Total row's
+   amount for that month when it has one, else the sum of the series' channel rows that have an amount
+   that month, else null. */
 function seriesValueFor(by, keys, key, ym){
   if (key === 'total'){
-    /* Per month, same rule as the reader (spike/revenue_plan.py _series_total): the explicit
-       Total row's value for this month if it has one, else the sum of this month's channel
-       rows, else null. */
     if (by.total && by.total[ym] != null) return by.total[ym];
     var any = false, sum = 0;
-    keys.forEach(function(k){ var v = by[k][ym]; if (v != null){ sum += v; any = true; } });
+    keys.forEach(function(k){ if (k === 'total') return; var v = by[k][ym]; if (v != null){ sum += v; any = true; } });
     return any ? sum : null;
   }
   return (by[key] && by[key][ym] != null) ? by[key][ym] : null;

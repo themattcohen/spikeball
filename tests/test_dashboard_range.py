@@ -1426,6 +1426,52 @@ FORECAST_COLS = ("forecast", "variance_vs_forecast", "var_vs_forecast_pct")
 PLAN_COLS = ("plan", "actual", "variance", "var_pct")
 
 
+def _forecast_row(ym, key, label, amount):
+    return {"ym": ym, "key": key, "label": label, "series": "forecast", "plan_gross": float(amount)}
+
+
+def _apply_forecast_rows(out, rows):
+    """Adds forecast rows to revenue_plan_month and derives the plan_vs_actual_month
+    forecast fields and revenue_plan_meta flags the way spike/revenue_plan.py does
+    (spike/CONTRACT.md): a channel row carries its own forecast; the total row's
+    forecast for a month is the explicit Total row's amount when it has one, else the
+    sum of the channel rows that have an amount that month, else null. Returns
+    {key: {ym: forecast}} for every key the table shows."""
+    out["revenue_plan_month"].extend(rows)
+    by = collections.defaultdict(dict)
+    for r in rows:
+        by[r["key"]][r["ym"]] = by[r["key"]].get(r["ym"], 0.0) + r["plan_gross"]
+
+    def total_for(ym):
+        if ym in by.get("total", {}):
+            return by["total"][ym]
+        vals = [m[ym] for k, m in by.items() if k != "total" and ym in m]
+        return sum(vals) if vals else None
+
+    expected = collections.defaultdict(dict)
+    for r in out["plan_vs_actual_month"]:
+        f = total_for(r["ym"]) if r["key"] == "total" else by.get(r["key"], {}).get(r["ym"])
+        r["forecast_gross"] = f
+        if f is not None:
+            expected[r["key"]][r["ym"]] = f
+        if f is not None and r.get("actual_gross") is not None:
+            r["variance_vs_forecast"] = r["actual_gross"] - f
+            r["variance_vs_forecast_pct"] = round((r["actual_gross"] - f) / f * 100, 1)
+        else:
+            r["variance_vs_forecast"] = None
+            r["variance_vs_forecast_pct"] = None
+    keys = set(by)
+    meta = out["revenue_plan_meta"]
+    meta["forecast_available"] = bool(rows)
+    meta["forecast_grain"] = None if not rows else ("total" if keys == {"total"} else ("channel" if "total" not in keys else "mixed"))
+    meta["series"] = sorted(set(meta.get("series") or []) | {"plan", "forecast"})
+    return expected
+
+
+def _total_forecast_rows(year):
+    return [_forecast_row(f"{year}-{m:02d}", "total", "Total", v) for m, v in enumerate(FORECAST_TOTAL_BY_MONTH, start=1)]
+
+
 def with_total_forecast(data, *, available=True):
     """The extract plus one Total/forecast row per month of the plan year. With
     available=True, plan_vs_actual_month and revenue_plan_meta follow the contract
@@ -1435,25 +1481,30 @@ def with_total_forecast(data, *, available=True):
     page must ignore entirely."""
     out = json.loads(json.dumps(data))
     year = str(out["meta"]["plan_year"])
-    fc = {f"{year}-{m:02d}": float(v) for m, v in enumerate(FORECAST_TOTAL_BY_MONTH, start=1)}
-    for ym, v in fc.items():
-        out["revenue_plan_month"].append({"ym": ym, "key": "total", "label": "Total", "series": "forecast", "plan_gross": v})
+    rows = _total_forecast_rows(year)
+    fc = {r["ym"]: r["plan_gross"] for r in rows}
     if not available:
+        out["revenue_plan_month"].extend(rows)
         return out, fc
-    for r in out["plan_vs_actual_month"]:
-        f = fc.get(r["ym"]) if r["key"] == "total" else None
-        r["forecast_gross"] = f
-        if f is not None and r.get("actual_gross") is not None:
-            r["variance_vs_forecast"] = r["actual_gross"] - f
-            r["variance_vs_forecast_pct"] = round((r["actual_gross"] - f) / f * 100, 1)
-        else:
-            r["variance_vs_forecast"] = None
-            r["variance_vs_forecast_pct"] = None
-    meta = out["revenue_plan_meta"]
-    meta["forecast_available"] = True
-    meta["forecast_grain"] = "total"
-    meta["series"] = sorted(set(meta.get("series") or []) | {"plan", "forecast"})
+    _apply_forecast_rows(out, rows)
     return out, fc
+
+
+MIXED_CHANNEL_FORECAST = {"11": 700000, "12": 650000}
+
+
+def with_mixed_forecast(data, channel_key):
+    """Mixed grain: the Total forecast row leaves November blank, and one channel carries
+    forecast rows for November and December. Per the contract the total's November is
+    the channel sum (700,000) and its December is the Total row's own amount."""
+    out = json.loads(json.dumps(data))
+    year = str(out["meta"]["plan_year"])
+    label = next(r["label"] for r in out["revenue_plan_month"] if r["key"] == channel_key)
+    rows = [r for r in _total_forecast_rows(year) if r["ym"] != f"{year}-11"]
+    rows += [_forecast_row(f"{year}-{mm}", channel_key, label, v) for mm, v in MIXED_CHANNEL_FORECAST.items()]
+    expected = _apply_forecast_rows(out, rows)
+    assert out["revenue_plan_meta"]["forecast_grain"] == "mixed"
+    return out, expected
 
 
 def _build_variant(build_dir, data, name):
@@ -1658,6 +1709,49 @@ def test_forecast_table_columns(browser, forecast_fixture, pva_by_key_month, pla
         for rid, cols in crows.items():
             for col in FORECAST_COLS:
                 assert cols.get(col) is None, f"{key} {rid} {col} should be blank, got {cols.get(col)}"
+
+
+def test_forecast_total_ties_to_table_with_mixed_grain(browser, build_dir, plan_data, plan_by_key_month, default_range_months):
+    """The chart reads revenue_plan_month and the table reads plan_vs_actual_month; on the
+    per-month total rule (Total row amount, else channel sum) they must agree."""
+    channel = sorted(plan_by_key_month)[0]
+    data, expected = with_mixed_forecast(plan_data, channel)
+    year = default_range_months[0][:4]
+    path = _build_variant(build_dir, data, "forecast_mixed")
+    with dash_page(browser) as (page, errors):
+        goto(page, path)
+        total_pts = {p["ym"]: p["forecast"] for p in _forecast_points(page, "total")}
+        total_rows = _table_rows(page)
+        page.select_option("#channel-trend-plan-select", channel)
+        channel_pts = {p["ym"]: p["forecast"] for p in _forecast_points(page, channel)}
+        channel_item = _forecast_legend_item(page)
+        channel_rows = _table_rows(page)
+        other = [k for k in sorted(plan_by_key_month) if k != channel][0]
+        page.select_option("#channel-trend-plan-select", other)
+        other_pts = _forecast_points(page, other)
+        other_item = _forecast_legend_item(page)
+    assert not errors, errors
+    # total view: every month of the year, November from the channel sum, December from the Total row
+    assert sorted(total_pts) == default_range_months, sorted(total_pts)
+    for ym in default_range_months:
+        assert_close(total_pts[ym], expected["total"][ym], CURRENCY_TOL, f"total forecast point {ym}")
+        assert_close(total_rows[f"month:{ym}"]["forecast"], expected["total"][ym], CURRENCY_TOL, f"total forecast cell {ym}")
+    assert_close(total_pts[f"{year}-11"], 700000.0, CURRENCY_TOL, "November total = channel sum")
+    assert_close(total_pts[f"{year}-12"], float(FORECAST_TOTAL_BY_MONTH[11]), CURRENCY_TOL, "December total = Total row")
+    # the channel with rows draws its own two points; the table shows the same two cells and blanks elsewhere
+    assert sorted(channel_pts) == [f"{year}-11", f"{year}-12"], sorted(channel_pts)
+    assert_close(channel_pts[f"{year}-11"], 700000.0, CURRENCY_TOL, "channel November")
+    assert_close(channel_pts[f"{year}-12"], 650000.0, CURRENCY_TOL, "channel December")
+    assert channel_item["state"] == "drawn", channel_item
+    for ym in default_range_months:
+        cell = channel_rows[f"month:{ym}"]["forecast"]
+        if ym in expected[channel]:
+            assert_close(cell, expected[channel][ym], CURRENCY_TOL, f"{channel} forecast cell {ym}")
+        else:
+            assert cell is None, f"{channel} {ym} should be blank, got {cell}"
+    assert_close(channel_rows["fy"]["forecast"], 1350000.0, CURRENCY_TOL, f"{channel} full-year forecast")
+    # a channel with no rows: nothing drawn, and the legend says so
+    assert other_pts == [] and other_item["state"] == "none", (other_pts, other_item)
 
 
 def test_no_forecast_available_renders_as_today(browser, html_on_path, forecast_rows_unflagged_path):
