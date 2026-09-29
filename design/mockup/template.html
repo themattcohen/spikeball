@@ -740,24 +740,6 @@ section > h2{ font-size:20px; margin-bottom:14px; letter-spacing:-0.005em; }
     </div>
   </section>
 
-  <section id="demand-section" aria-labelledby="demand-heading">
-    <h2 id="demand-heading">Demand vs actuals</h2>
-    <p class="section-sub">Plan units vs. shipped units by SKU and month, from the CFO-entered demand plan against actual SKU-line sales. Cost coverage lists average cost and last purchase price for every SKU carrying a plan.</p>
-    <div class="card" style="margin-bottom:16px;">
-      <div class="card-head"><div><h3>Plan vs actual units, all SKUs</h3><p class="card-sub" id="demand-chart-sub"></p></div></div>
-      <div class="legend" id="demand-legend"></div>
-      <div class="chart-viz" id="demand-chart"></div>
-    </div>
-    <div class="card overflow-x">
-      <div class="card-head"><div><h3>Plan vs actual, by SKU</h3><p class="card-sub" id="demand-table-sub"></p></div></div>
-      <div id="demand-table"></div>
-    </div>
-    <div class="card overflow-x" style="margin-top:16px;">
-      <div class="card-head"><div><h3>Cost coverage</h3><p class="card-sub" id="demand-cost-sub"></p></div></div>
-      <div id="demand-cost-table"></div>
-    </div>
-  </section>
-
   <footer class="app-footer" id="app-footer"></footer>
 
 </main>
@@ -1752,6 +1734,8 @@ function buildChannelTrendChart(onSelectRollup, o){
             ttRow(box, null, 'Forecast', money(fcV));
             ttRow(box, null, 'Var vs forecast', signedMoney(r ? r.variance_vs_forecast : null));
             ttRow(box, null, 'Var vs forecast %', signedPct1(r ? r.variance_vs_forecast_pct : null));
+            var fvpV = (r && r.forecast_vs_plan != null) ? r.forecast_vs_plan : ((planV != null) ? fcV - planV : null);
+            ttRow(box, null, 'Forecast vs plan', signedMoney(fvpV));
           }
         }
       }
@@ -1914,72 +1898,6 @@ function buildYearLineChart(values, years, colorVarRef, ariaLabel){
   });
   hit.addEventListener('pointerleave', function(){ crosshair.style.opacity='0'; ttHide(); });
   svg.appendChild(hit);
-  return svg;
-}
-
-/* ============================================================
-   8b. CHART: TWO-SERIES LINE (demand plan vs actual)
-   `series` is [{label, values, colorRef, dashed}, ...], same length
-   as `months`. `fmt` formats both axis ticks and tooltip values.
-   ============================================================ */
-function buildDualLineChart(months, series, ariaLabel, fmt){
-  fmt = fmt || money;
-  var M = {top:14, right:16, bottom:24, left:52};
-  var PW = 460, PH = 170;
-  var VW = M.left+PW+M.right, VH = M.top+PH+M.bottom;
-  var n = months.length;
-  var allVals = [];
-  series.forEach(function(s){ s.values.forEach(function(v){ if (v != null && isFinite(v)) allVals.push(v); }); });
-  if (!allVals.length) allVals = [0];
-  var min = Math.min.apply(null, allVals), max = Math.max.apply(null, allVals);
-  var axis = niceAxis(min, max, 4);
-  var yScale = function(v){ return M.top + PH - ((v-axis.lo)/(axis.hi-axis.lo))*PH; };
-  var xScale = function(i){ return M.left + (i/(n-1)) * PW; };
-
-  var svg = svgEl('svg', {viewBox:'0 0 '+VW+' '+VH, role:'img', 'aria-label':ariaLabel});
-  axis.ticks.forEach(function(t){
-    var yy = yScale(t);
-    svg.appendChild(svgEl('line', {class: t===0?'baseline-line':'grid-line', x1:M.left, x2:M.left+PW, y1:yy, y2:yy}));
-    var lbl = svgEl('text', {class:'tick-label', x:M.left-8, y:yy+3, 'text-anchor':'end'});
-    lbl.textContent = fmt(t);
-    svg.appendChild(lbl);
-  });
-  months.forEach(function(ym,i){
-    if (n > 8 && i % 2 !== 0 && i !== n-1) return;
-    var xt = svgEl('text', {class:'tick-label', x:xScale(i), y:M.top+PH+16, 'text-anchor':'middle'});
-    xt.textContent = monthLabel(ym, i);
-    svg.appendChild(xt);
-  });
-
-  series.forEach(function(s){
-    var d = s.values.map(function(v,i){ return (i===0?'M':'L')+xScale(i).toFixed(1)+','+yScale(v||0).toFixed(1); }).join(' ');
-    var attrs = {d:d, fill:'none', stroke:s.colorRef, 'stroke-width':'2', 'stroke-linecap':'round', 'stroke-linejoin':'round'};
-    if (s.dashed) attrs['stroke-dasharray'] = '5,3';
-    svg.appendChild(svgEl('path', attrs));
-    var lastX = xScale(n-1), lastY = yScale(s.values[n-1]||0);
-    svg.appendChild(svgEl('circle', {cx:lastX, cy:lastY, r:'5', fill:'var(--surface)'}));
-    svg.appendChild(svgEl('circle', {cx:lastX, cy:lastY, r:'3.2', fill:s.colorRef}));
-  });
-
-  var crosshair = svgEl('line', {class:'crosshair-line', x1:0, x2:0, y1:M.top, y2:M.top+PH});
-  svg.appendChild(crosshair);
-  var hit2 = svgEl('rect', {x:M.left, y:M.top, width:PW, height:PH, fill:'transparent'});
-  hit2.addEventListener('pointermove', function(ev){
-    var p = screenToSVG(svg, ev.clientX, ev.clientY);
-    var i = Math.max(0, Math.min(n-1, Math.round((p.x-M.left)/PW*(n-1))));
-    var cx = xScale(i);
-    crosshair.setAttribute('x1', cx); crosshair.setAttribute('x2', cx);
-    crosshair.style.opacity = '1';
-    ttShow(ev.clientX, ev.clientY, function(box){
-      var head = el('div','tt-title'); head.textContent = monthLabel(months[i], i).replace("'", "20"); box.appendChild(head);
-      series.forEach(function(s){
-        var hex = s.colorRef.indexOf('var(') === 0 ? getComputedStyle(document.documentElement).getPropertyValue(s.colorRef.slice(4,-1)).trim() : s.colorRef;
-        ttRow(box, hex, s.label, fmt(s.values[i]));
-      });
-    });
-  });
-  hit2.addEventListener('pointerleave', function(){ crosshair.style.opacity='0'; ttHide(); });
-  svg.appendChild(hit2);
   return svg;
 }
 
@@ -2435,9 +2353,22 @@ function planCellsOf(pk, ym){
   var forecast = FORECAST_OK ? (r ? (r.forecast_gross != null ? r.forecast_gross : null) : forecastValueFor(pk, ym)) : null;
   var varFc = (FORECAST_OK && r && r.variance_vs_forecast != null) ? r.variance_vs_forecast : null;
   var varFcPct = (FORECAST_OK && r && r.variance_vs_forecast_pct != null) ? r.variance_vs_forecast_pct : null;
+  /* Forecast vs plan (forecast minus plan) exists wherever both exist, future months included. The extract
+     carries it; without a row it is derived here by the same rule. */
+  var fcVsPlan = null, fcVsPlanPct = null;
+  if (FORECAST_OK){
+    if (r){
+      fcVsPlan = (r.forecast_vs_plan != null) ? r.forecast_vs_plan : null;
+      fcVsPlanPct = (r.forecast_vs_plan_pct != null) ? r.forecast_vs_plan_pct : null;
+    } else if (forecast != null && plan != null){
+      fcVsPlan = forecast - plan;
+      fcVsPlanPct = plan !== 0 ? fcVsPlan / plan * 100 : null;
+    }
+  }
   if (basis === 'future'){ actual = null; variance = null; varPct = null; varFc = null; varFcPct = null; }
-  if (basis === 'no_plan'){ plan = null; variance = null; varPct = null; }
-  return {plan:plan, actual:actual, variance:variance, varPct:varPct, basis:basis, forecast:forecast, varFc:varFc, varFcPct:varFcPct};
+  if (basis === 'no_plan'){ plan = null; variance = null; varPct = null; fcVsPlan = null; fcVsPlanPct = null; }
+  return {plan:plan, actual:actual, variance:variance, varPct:varPct, basis:basis, forecast:forecast, varFc:varFc, varFcPct:varFcPct,
+          fcVsPlan:fcVsPlan, fcVsPlanPct:fcVsPlanPct};
 }
 /* Sums a set of month cells. Variance pairs actual with plan only where both exist. */
 function planAggregate(cells){
@@ -2458,6 +2389,13 @@ function planAggregate(cells){
     if (c.actual != null && c.forecast != null){ fcElapsed += c.forecast; pairActualFc += c.actual; pairFc += c.forecast; pairedFc = true; }
   });
   var partialFc = hasActual && cells.some(function(c){ return c.actual == null && c.forecast != null; });
+  /* Forecast vs plan over the months the plan side shows (elapsed months only once actuals have started,
+     else every month), paired where both forecast and plan exist; percent against that paired plan. */
+  var fvpFc = 0, fvpPlan = 0, pairedFvp = false;
+  cells.forEach(function(c){
+    if (partial && c.actual == null) return;
+    if (c.forecast != null && c.plan != null){ fvpFc += c.forecast; fvpPlan += c.plan; pairedFvp = true; }
+  });
   return {
     plan: (hasPlan ? shownPlan : null),
     actual: hasActual ? actual : null,
@@ -2466,7 +2404,9 @@ function planAggregate(cells){
     partial: partial,
     forecast: hasFc ? (partialFc ? fcElapsed : fcAll) : null,
     varFc: pairedFc ? pairActualFc - pairFc : null,
-    varFcPct: (pairedFc && pairFc !== 0) ? (pairActualFc - pairFc) / pairFc * 100 : null
+    varFcPct: (pairedFc && pairFc !== 0) ? (pairActualFc - pairFc) / pairFc * 100 : null,
+    fcVsPlan: pairedFvp ? fvpFc - fvpPlan : null,
+    fcVsPlanPct: (pairedFvp && fvpPlan !== 0) ? (fvpFc - fvpPlan) / fvpPlan * 100 : null
   };
 }
 var fCurrencyCompact3 = new Intl.NumberFormat('en-US', {style:'currency', currency:'USD', notation:'compact', maximumSignificantDigits:3});
@@ -2498,6 +2438,8 @@ function planTableRow(rowId, cls, label, c, tag){
     cell('forecast', c.forecast, money(c.forecast), compactMoney(c.forecast));
     cell('variance_vs_forecast', c.varFc, signedMoney(c.varFc), (c.varFc > 0 ? '+' : '') + compactMoney(c.varFc));
     cell('var_vs_forecast_pct', c.varFcPct, signedPct1(c.varFcPct));
+    cell('forecast_vs_plan', c.fcVsPlan, signedMoney(c.fcVsPlan), (c.fcVsPlan > 0 ? '+' : '') + compactMoney(c.fcVsPlan));
+    cell('forecast_vs_plan_pct', c.fcVsPlanPct, signedPct1(c.fcVsPlanPct));
   }
   return tr;
 }
@@ -2510,7 +2452,7 @@ function renderPlanTable(months, pk){
   wrap.hidden = false;
   var label = pk === 'total' ? 'Total' : (ROLLUP_LABEL[pk] || pk);
   document.getElementById('plan-vs-actual-title').textContent = 'Plan vs actual, ' + label;
-  var subText = 'Gross revenue. Variance = actual minus plan' + (FORECAST_OK ? '; var vs forecast = actual minus forecast' : '') +
+  var subText = 'Gross revenue. Variance = actual minus plan' + (FORECAST_OK ? '; var vs forecast = actual minus forecast; fcst vs plan = forecast minus plan' : '') +
     '. The open month is month to date against its full-month plan' + (FORECAST_OK ? ' and forecast' : '') + '.';
   if (FORECAST_OK && !forecastCoversKey(pk)) subText += ' No forecast for ' + label + '; its forecast columns are blank.';
   document.getElementById('plan-vs-actual-sub').textContent = subText;
@@ -2520,7 +2462,7 @@ function renderPlanTable(months, pk){
   ['Month','Plan','Actual','Variance','Var %'].forEach(function(h){ var th = el('th'); th.textContent = h; htr.appendChild(th); });
   if (FORECAST_OK){
     /* Full header on wide screens, a short one on phones (the same .v-full / .v-compact swap the cells use). */
-    [['Forecast','Forecast'], ['Var vs forecast','vs fcst'], ['Var vs forecast %','vs fcst %']].forEach(function(h){
+    [['Forecast','Forecast'], ['Var vs forecast','vs fcst'], ['Var vs forecast %','vs fcst %'], ['Fcst vs plan','vs plan'], ['Fcst vs plan %','vs plan %']].forEach(function(h){
       var th = el('th');
       var full = el('span','v-full'); full.textContent = h[0]; th.appendChild(full);
       var comp = el('span','v-compact'); comp.textContent = h[1]; th.appendChild(comp);
@@ -2567,8 +2509,10 @@ function renderPlanTable(months, pk){
         if (c.forecast != null){ fyFc += c.forecast; fyFcHas = true; }
       });
       var fyLabel = (fyHas && fyFcHas) ? 'Full-year ' : (fyHas ? 'Full-year plan ' : 'Full-year forecast ');
+      var fyFvp = (fyHas && fyFcHas) ? fyFc - fyPlan : null;
       if (fyHas || fyFcHas) tbody.appendChild(planTableRow('fy', 'plan-fy-row', fyLabel + asofYear,
-        {plan: fyHas ? fyPlan : null, actual:null, variance:null, varPct:null, forecast: fyFcHas ? fyFc : null, varFc:null, varFcPct:null}, null));
+        {plan: fyHas ? fyPlan : null, actual:null, variance:null, varPct:null, forecast: fyFcHas ? fyFc : null, varFc:null, varFcPct:null,
+         fcVsPlan: fyFvp, fcVsPlanPct: (fyFvp != null && fyPlan !== 0) ? fyFvp / fyPlan * 100 : null}, null));
     }
   }
   table.appendChild(tbody);
@@ -4319,120 +4263,6 @@ function renderWorkingCapital(){
   try { renderItemCost(); } catch(e){ if (window.console && console.error) console.error('[dashboard] Item cost', e); }
 }
 
-/* ---- Demand vs actuals ---- */
-var DEMAND_TABLE_TOP_N = 20;
-function renderDemand(){
-  var dva = RAW.demand_vs_actual || {};
-  var rows = asArray(dva.plan_vs_actual);
-  var coverage = asArray(dva.cost_coverage);
-  var anyPlan = rows.some(function(r){ return (r.plan_units||0) !== 0; });
-
-  /* Trend: total plan vs actual units per month, across every SKU. */
-  var legend = document.getElementById('demand-legend');
-  legend.innerHTML = '';
-  [['Actual units','var(--ink)'], ['Plan units (dashed)','var(--muted)']].forEach(function(pair){
-    var item = el('span','legend-item legend-static');
-    var sw = el('span','legend-line-swatch'); sw.style.background = pair[1];
-    item.appendChild(sw);
-    var txt = el('span'); txt.textContent = pair[0]; item.appendChild(txt);
-    legend.appendChild(item);
-  });
-  document.getElementById('demand-chart-sub').textContent = anyPlan
-    ? 'Trailing months, all SKUs summed'
-    : 'Trailing months, all SKUs summed; no demand plan captured this run, plan shown as 0';
-  renderGuarded('demand-chart', rows, 'Demand vs actuals', function(host){
-    var byYm = {};
-    rows.forEach(function(r){
-      var b = byYm[r.ym] || (byYm[r.ym] = {plan:0, actual:0});
-      b.plan += r.plan_units||0; b.actual += r.actual_units||0;
-    });
-    var months = Object.keys(byYm).sort();
-    if (months.length < 2){ amazonPlaceholder(host, 'info', 'Not enough months for a trend.'); return; }
-    host.appendChild(buildDualLineChart(months, [
-      {label:'Actual units', values: months.map(function(m){ return byYm[m].actual; }), colorRef:'var(--ink)', dashed:false},
-      {label:'Plan units', values: months.map(function(m){ return byYm[m].plan; }), colorRef:'var(--muted)', dashed:true}
-    ], 'Plan versus actual units by month, all SKUs', units));
-  });
-
-  /* Table: latest month, top SKUs by actual units. */
-  var latest = rows.length ? latestYmInfo(rows, 'ym', false) : null;
-  document.getElementById('demand-table-sub').textContent = rows.length
-    ? (monthYearLabel(latest.ym) + ', top ' + DEMAND_TABLE_TOP_N + ' SKUs by actual units')
-    : '';
-  renderGuarded('demand-table', rows, 'Demand vs actuals', function(host){
-    var forYm = rows.filter(function(r){ return r.ym === latest.ym; }).sort(function(a,b){ return (b.actual_units||0)-(a.actual_units||0); });
-    var shown = forYm.slice(0, DEMAND_TABLE_TOP_N);
-    var rest = forYm.slice(DEMAND_TABLE_TOP_N);
-    var t = el('table','data-table');
-    var thead = el('thead'); var htr = el('tr');
-    ['SKU','Plan units','Actual units','Variance','Variance %','Actual $'].forEach(function(h){ var th=el('th'); th.textContent=h; htr.appendChild(th); });
-    thead.appendChild(htr); t.appendChild(thead);
-    var tbody = el('tbody');
-    shown.forEach(function(r){
-      var tr = el('tr');
-      tr.appendChild(Object.assign(el('td'), {textContent: r.sku || ''}));
-      tr.appendChild(Object.assign(el('td'), {textContent: units(r.plan_units)}));
-      tr.appendChild(Object.assign(el('td'), {textContent: units(r.actual_units)}));
-      tr.appendChild(Object.assign(el('td'), {textContent: (r.variance_units>0 ? '+' : '') + units(r.variance_units)}));
-      tr.appendChild(Object.assign(el('td'), {textContent: r.variance_pct != null ? signedPct1(r.variance_pct) : 'n/a'}));
-      tr.appendChild(Object.assign(el('td'), {textContent: moneyCents(r.actual_dollars)}));
-      tbody.appendChild(tr);
-    });
-    var sumPlan=0, sumActual=0, sumVar=0, sumDollars=0;
-    forYm.forEach(function(r){ sumPlan+=(r.plan_units||0); sumActual+=(r.actual_units||0); sumVar+=(r.variance_units||0); sumDollars+=(r.actual_dollars||0); });
-    var trT = el('tr','total-row');
-    trT.appendChild(Object.assign(el('td'), {textContent: 'Total, all ' + forYm.length + ' SKUs'}));
-    trT.appendChild(Object.assign(el('td'), {textContent: units(sumPlan)}));
-    trT.appendChild(Object.assign(el('td'), {textContent: units(sumActual)}));
-    trT.appendChild(Object.assign(el('td'), {textContent: (sumVar>0 ? '+' : '') + units(sumVar)}));
-    trT.appendChild(el('td'));
-    trT.appendChild(Object.assign(el('td'), {textContent: moneyCents(sumDollars)}));
-    tbody.appendChild(trT);
-    t.appendChild(tbody);
-    host.appendChild(t);
-    if (rest.length){
-      var restUnits = rest.reduce(function(s,r){ return s + (r.actual_units||0); }, 0);
-      var note = el('p','concentration-note');
-      note.textContent = 'Showing top ' + DEMAND_TABLE_TOP_N + ' of ' + forYm.length + ' SKUs by actual units; remaining ' + rest.length + ' SKUs total ' + units(restUnits) + ' units.';
-      host.appendChild(note);
-    }
-  });
-
-  /* Cost coverage: SKUs carrying a demand plan, joined to item cost. Empty (no plan
-     captured yet) renders the standard renderGuarded "not available" note. */
-  document.getElementById('demand-cost-sub').textContent = coverage.length
-    ? (coverage.length + ' SKUs with a captured demand plan')
-    : '';
-  renderGuarded('demand-cost-table', coverage, 'Cost coverage', function(host){
-    var sorted = coverage.slice().sort(function(a,b){ return (b.total_plan_units||0)-(a.total_plan_units||0); });
-    var t = el('table','data-table');
-    var thead = el('thead'); var htr = el('tr');
-    ['SKU','In NetSuite','Avg cost','Last PO price','Unit price','Plan units'].forEach(function(h){ var th=el('th'); th.textContent=h; htr.appendChild(th); });
-    thead.appendChild(htr); t.appendChild(thead);
-    var tbody = el('tbody');
-    sorted.forEach(function(r){
-      var tr = el('tr');
-      tr.appendChild(Object.assign(el('td'), {textContent: r.sku || ''}));
-      tr.appendChild(Object.assign(el('td'), {textContent: r.in_netsuite ? 'Yes' : 'No'}));
-      var costCell = el('td');
-      if (r.cost_missing){
-        costCell.className = 'na-cell';
-        costCell.innerHTML = icon('warn', 11);
-        var costTxt = document.createElement('span'); costTxt.style.marginLeft='4px'; costTxt.textContent = 'missing'; costCell.appendChild(costTxt);
-      } else {
-        costCell.textContent = moneyCents(r.average_cost);
-      }
-      tr.appendChild(costCell);
-      tr.appendChild(Object.assign(el('td'), {textContent: r.last_purchase_price != null ? moneyCents(r.last_purchase_price) : 'n/a'}));
-      tr.appendChild(Object.assign(el('td'), {textContent: r.unit_price != null ? moneyCents(r.unit_price) : 'n/a'}));
-      tr.appendChild(Object.assign(el('td'), {textContent: units(r.total_plan_units)}));
-      tbody.appendChild(tr);
-    });
-    t.appendChild(tbody);
-    host.appendChild(t);
-  });
-}
-
 /* ============================================================
    17. RENDER: FOOTER
    ============================================================ */
@@ -4547,8 +4377,7 @@ var SECTION_NAV_TARGETS = [
   ['pnl-account-section', 'P&L by account'],
   ['balance-sheet-section', 'Balance sheet'],
   ['cashflow-section', 'Cash flow'],
-  ['working-capital-section', 'Working capital'],
-  ['demand-section', 'Demand']
+  ['working-capital-section', 'Working capital']
 ];
 function initSectionNav(){
   var nav = document.getElementById('section-nav');
@@ -4686,8 +4515,7 @@ var RANGE_CAPTION_TARGETS = [
   {id:'working-capital-section', kind:'snapshot'},
   {id:'amazon-section', kind:'period'},
   {id:'returns-section', kind:'period'},
-  {id:'kpi-ltd', kind:'snapshot'},
-  {id:'demand-section', kind:'snapshot'}
+  {id:'kpi-ltd', kind:'snapshot'}
 ];
 function renderRangeCaptions(isCustom){
   RANGE_CAPTION_TARGETS.forEach(function(t){
@@ -5081,7 +4909,6 @@ function init(){
   renderReturns();
 
   try { renderWorkingCapital(); } catch(e){ if (window.console && console.error) console.error('[dashboard] Working capital section', e); }
-  try { renderDemand(); } catch(e){ if (window.console && console.error) console.error('[dashboard] Demand vs actuals section', e); }
 
   renderFooter();
 

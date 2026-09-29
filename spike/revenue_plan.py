@@ -373,11 +373,18 @@ def build_outputs(plan_json, rollup_by_month, asof_date, rollups_cfg):
             if f is not None and a is not None and basis0 != "future":
                 variance_f = _money(a - f)
                 pct_f = _pct(variance_f, f)
+            # forecast vs plan needs no actuals, so it is populated for future months too
+            fvp = fvp_pct = None
+            if f is not None and p is not None:
+                fvp = _money(f - p)
+                fvp_pct = _pct(fvp, p)
             pva.append({"ym": ym, "key": key, "label": label, "plan_gross": p,
                         "actual_gross": a, "variance": variance, "variance_pct": pct,
                         "basis": basis, "forecast_gross": f,
                         "variance_vs_forecast": variance_f,
-                        "variance_vs_forecast_pct": pct_f})
+                        "variance_vs_forecast_pct": pct_f,
+                        "forecast_vs_plan": fvp,
+                        "forecast_vs_plan_pct": fvp_pct})
     if outside:
         notes.append("no actuals in the rollup window for: " + ", ".join(sorted(set(outside))))
 

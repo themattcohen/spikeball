@@ -232,7 +232,8 @@ def test_total_plan_and_actual_include_all_keys_and_unassigned():
 
 
 PLAN_FIELDS = ("ym", "key", "label", "plan_gross", "actual_gross", "variance", "variance_pct", "basis")
-FORECAST_FIELDS = ("forecast_gross", "variance_vs_forecast", "variance_vs_forecast_pct")
+FORECAST_FIELDS = ("forecast_gross", "variance_vs_forecast", "variance_vs_forecast_pct",
+                   "forecast_vs_plan", "forecast_vs_plan_pct")
 
 
 def test_forecast_feeds_forecast_gross_and_never_plan_gross():
@@ -357,6 +358,58 @@ def test_forecast_variance_null_when_month_outside_actuals_window():
     out = revenue_plan.build_outputs(pj, [rb("2026-05", "amazon", 5.0)], "2026-06-15", CFG)
     t = pva(out, "2026-01", "total")
     assert (t["forecast_gross"], t["actual_gross"], t["variance_vs_forecast"]) == (50.0, None, None)
+
+
+def test_forecast_vs_plan_on_total_rows_including_months_after_asof():
+    pj = plan_json([prow("amazon", "Amazon", {"2026-01": 300.0, "2026-02": 200.0, "2026-03": 100.0}),
+                    prow("dtc", "Spikeball.com", {"2026-01": 100.0, "2026-02": 50.0, "2026-03": 33.33}),
+                    prow("total", "Total", {"2026-01": 500.0, "2026-02": 200.0, "2026-03": 150.0}, series="forecast")])
+    out = revenue_plan.build_outputs(pj, full_year_rollup(), "2026-02-10", CFG)
+    jan, feb, mar = pva(out, "2026-01", "total"), pva(out, "2026-02", "total"), pva(out, "2026-03", "total")
+    assert (jan["basis"], jan["forecast_vs_plan"], jan["forecast_vs_plan_pct"]) == ("actual", 100.0, 25.0)
+    assert (feb["basis"], feb["forecast_vs_plan"], feb["forecast_vs_plan_pct"]) == ("open", -50.0, -20.0)
+    # March is after asof: no actuals, both variances null, forecast vs plan still populated
+    assert (mar["basis"], mar["actual_gross"], mar["variance"], mar["variance_vs_forecast"]) == ("future", None, None, None)
+    assert (mar["plan_gross"], mar["forecast_gross"]) == (133.33, 150.0)
+    assert (mar["forecast_vs_plan"], mar["forecast_vs_plan_pct"]) == (16.67, 12.5)
+
+
+def test_forecast_vs_plan_null_on_channel_rows_when_forecast_is_total_only():
+    pj = plan_json([prow("amazon", "Amazon", {"2026-01": 300.0}),
+                    prow("total", "Total", {"2026-01": 500.0}, series="forecast")])
+    out = revenue_plan.build_outputs(pj, full_year_rollup(), "2026-06-01", CFG)
+    for key in ("amazon", "wholesale", "dtc", "other_b2b"):
+        r = pva(out, "2026-01", key)
+        assert (r["forecast_vs_plan"], r["forecast_vs_plan_pct"]) == (None, None)
+    assert pva(out, "2026-01", "total")["forecast_vs_plan"] == 200.0
+
+
+def test_forecast_vs_plan_on_channel_rows_when_forecast_has_channel_grain():
+    pj = plan_json([prow("amazon", "Amazon", {"2026-01": 80.0}),
+                    prow("amazon", "Amazon", {"2026-01": 100.0}, series="forecast")])
+    r = pva(revenue_plan.build_outputs(pj, full_year_rollup(), "2026-06-01", CFG), "2026-01", "amazon")
+    assert (r["forecast_vs_plan"], r["forecast_vs_plan_pct"]) == (20.0, 25.0)
+
+
+def test_forecast_vs_plan_null_when_plan_missing_or_zero_or_forecast_missing():
+    pj = plan_json([prow("amazon", "Amazon", {"2026-01": 0.0, "2026-03": 10.0}),
+                    prow("amazon", "Amazon", {"2026-01": 5.0, "2026-02": 7.0}, series="forecast")],
+                   cols=("2026-01", "2026-02", "2026-03"))
+    out = revenue_plan.build_outputs(pj, full_year_rollup(), "2026-06-01", CFG)
+    jan = pva(out, "2026-01", "amazon")                       # plan 0: difference kept, pct null
+    assert (jan["forecast_vs_plan"], jan["forecast_vs_plan_pct"]) == (5.0, None)
+    feb = pva(out, "2026-02", "amazon")                       # no plan
+    assert (feb["plan_gross"], feb["forecast_vs_plan"], feb["forecast_vs_plan_pct"]) == (None, None, None)
+    mar = pva(out, "2026-03", "amazon")                       # no forecast
+    assert (mar["forecast_gross"], mar["forecast_vs_plan"], mar["forecast_vs_plan_pct"]) == (None, None, None)
+
+
+def test_forecast_vs_plan_rounding():
+    pj = plan_json([prow("amazon", "Amazon", {"2026-01": 33.333}),
+                    prow("amazon", "Amazon", {"2026-01": 44.444}, series="forecast")])
+    r = pva(revenue_plan.build_outputs(pj, full_year_rollup(), "2026-06-01", CFG), "2026-01", "amazon")
+    assert (r["plan_gross"], r["forecast_gross"]) == (33.33, 44.44)
+    assert r["forecast_vs_plan"] == 11.11 and r["forecast_vs_plan_pct"] == 33.3
 
 
 def test_every_plan_vs_actual_row_carries_the_forecast_fields():
@@ -601,13 +654,15 @@ def test_forecast_fields_flow_through_both_publishers_without_code_change():
         full_year_rollup(), "2026-06-01", CFG)
     tables = publish_sheet.build_tables(out)
     pva_headers = publish_sheet.build_grid(tables["plan_vs_actual_month"])[0]
-    assert {"forecast_gross", "variance_vs_forecast", "variance_vs_forecast_pct"} <= set(pva_headers)
+    assert {"forecast_gross", "variance_vs_forecast", "variance_vs_forecast_pct",
+            "forecast_vs_plan", "forecast_vs_plan_pct"} <= set(pva_headers)
     summary_headers = publish_sheet.build_grid(tables["revenue_plan_meta_summary"])[0]
     assert {"forecast_available", "forecast_grain"} <= set(summary_headers)
     assert [r["value"] for r in tables["revenue_plan_meta_series"]] == ["forecast", "plan"]
     fields, _, _ = publish_bq.build_schema_and_order(tables["plan_vs_actual_month"])
     by_name = {f["name"]: f["type"] for f in fields}
     assert by_name["forecast_gross"] == "FLOAT64" and by_name["variance_vs_forecast_pct"] == "FLOAT64"
+    assert by_name["forecast_vs_plan"] == "FLOAT64" and by_name["forecast_vs_plan_pct"] == "FLOAT64"
     fields, _, _ = publish_bq.build_schema_and_order(tables["revenue_plan_meta_summary"])
     by_name = {f["name"]: f["type"] for f in fields}
     assert by_name["forecast_available"] == "BOOL" and by_name["forecast_grain"] == "STRING"

@@ -31,7 +31,7 @@ Both are built and tested.
   `design/mockup/template.html`, `design/mockup/build.py`, `spike/CONTRACT.md`,
   `OPERATIONS.md`, tests `tests/test_revenue_plan.py`, `tests/test_extract_gross.py`,
   and an extended `tests/test_dashboard_range.py`. In this repository the suite collects
-  186 tests: 146 pass and 40 skip (the browser DOM tests need a real
+  193 tests: 151 pass and 42 skip (the browser DOM tests need a real
   `spike/data/latest.json`; one parser test needs openpyxl). The maintainer's full suite
   is larger because it includes tests that do not ship here.
 
@@ -74,7 +74,7 @@ Both are built and tested.
    ```
 
    The browser tests need a real `spike/data/latest.json`; they skip cleanly without one.
-   Expected: 186 collected, 146 passed, 40 skipped.
+   Expected: 193 collected, 151 passed, 42 skipped.
 
 3. Push the merge to the default branch. The routine checks the repository out fresh on
    every run, so no other deploy step exists.

@@ -159,7 +159,10 @@ workbook for closed months (the only differences are ledger postings entered aft
 
 Where they appear: the Google Sheet (one tab per section) and BigQuery (one table + a Looker view per
 section) refresh every night with the rest. The Looker report gains a page per section once its charts are
-placed. The dashboard page (Artifact) shows all six, labeled actual-only.
+placed. The dashboard page (Artifact) shows all six, labeled actual-only. The Demand Plan tab and its
+Sheet and BigQuery outputs (demand vs actual units, cost coverage) still refresh and publish every night;
+the dashboard page has no Demand vs actuals section (plan-versus-actual on the page is gross dollars by
+channel and in total, the blocks of the CFO's revenue summary, nothing SKU-level).
 
 Balance sheet accuracy (important, updated 2026-08-28): the balance sheet is built from a nightly snapshot
 of NetSuite's own native account balances, pulled over the API (`spike/extract_v2_bs_snapshot.py`) -- the
@@ -196,7 +199,10 @@ Editing the plan: open the "Revenue Plan" tab, keep the header row (Channel, Ser
 column per month) and type gross dollars into the cells. Channel is Amazon, Spikeball.com or Wholesale
 (Other B2B is accepted). Series is Plan for the original plan. A row with Channel Total and Series Forecast
 draws as a second, dotted line in the Total view of the chart and fills the Forecast, Var vs forecast and
-Var vs forecast % columns of the table; a Forecast row for a channel draws in that channel's view. Where no
+Var vs forecast % columns of the table; a Forecast row for a channel draws in that channel's view. The Fcst
+vs plan and Fcst vs plan % columns are forecast minus plan, filled for every month that has both (months
+after the as-of month included); quarter, year-to-date and full-year rows carry the same difference over the
+months they cover. Where no
 Forecast row covers the selected channel, the legend and the table caption say so and the forecast cells
 are blank. Blank means no plan or forecast for that month. The nightly reads
 the tab and never writes it. A row it cannot read is dropped and listed on the revenue_plan_meta tabs; if

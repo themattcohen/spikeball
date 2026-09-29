@@ -131,7 +131,8 @@ Net `revenue` everywhere is unchanged. Gross is additive.
   `total` (the explicit Total row of a series, when present).
 - `plan_vs_actual_month`: `[{"ym", "key", "label", "plan_gross": num|null, "actual_gross": num|null,
   "variance": num|null, "variance_pct": num|null, "basis": "actual"|"open"|"future"|"no_plan",
-  "forecast_gross": num|null, "variance_vs_forecast": num|null, "variance_vs_forecast_pct": num|null}]`
+  "forecast_gross": num|null, "variance_vs_forecast": num|null, "variance_vs_forecast_pct": num|null,
+  "forecast_vs_plan": num|null, "forecast_vs_plan_pct": num|null}]`
   for every rollup key in rollup order plus `key: "total"` (label `Total`). Total plan and total forecast
   follow the series total rule above; total actual = sum of `gross_revenue` over ALL rollup keys including
   `other_b2b` and unassigned, which equals the hero total. `variance` = actual - plan and `variance_pct`
@@ -141,9 +142,12 @@ Net `revenue` everywhere is unchanged. Gross is additive.
   window). `forecast_gross` is populated for future months like `plan_gross`. `basis` depends on the
   plan side only: `actual` = month before the as-of month; `open` = the as-of month (provisional MTD);
   `future` = after as-of (`actual_gross` null); `no_plan` = actuals but no plan row. A forecast without a
-  plan does not change `basis`. Every row carries all eleven fields; with no forecast row the three
-  forecast fields are `null` on every row and the plan fields are byte-for-byte what they were before
-  the forecast series existed (tests/test_revenue_plan.py pins this).
+  plan does not change `basis`. `forecast_vs_plan` = forecast - plan (2dp, `null` when either is null)
+  and `forecast_vs_plan_pct` = that / plan * 100 (1dp, `null` when plan is 0 or null): the CFO Tracking
+  tab's "La Plata Forecast v Plan" block. Neither needs actuals, so both are populated for months after
+  the as-of month whenever plan and forecast both exist. Every row carries all thirteen fields; with no
+  forecast row the five forecast fields are `null` on every row and the plan fields are byte-for-byte
+  what they were before the forecast series existed (tests/test_revenue_plan.py pins this).
 - Stale fallback (`resolve_snapshot`): the last known-good snapshot is reused whole, so forecast and
   `Total` rows survive a failed read exactly like plan rows.
 - `meta.plan_year` (int|null, from `revenue_plan_meta.year`), `meta.chart_months` (sorted ym list: the

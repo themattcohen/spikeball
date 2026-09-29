@@ -675,10 +675,18 @@ def test_t5_preset_identity(browser, html_flags_off_current_path, html_flags_off
     # Both flags-off pages are built from the extract with every gross and plan field
     # removed, so this proves the legacy net-revenue path is unchanged by the gross and
     # plan work. (Gross-bearing extracts differ from the 2026-09-08 baseline on purpose.)
+    # The 2026-09-08 baseline still renders a "Demand vs actuals" section; the page dropped it on
+    # 2026-09-29 (owner ruling: plan-versus-actual on the page is dollars by channel and in total),
+    # so that section and its nav button are removed from the baseline DOM before the comparison.
+    drop_demand = """() => {
+        document.querySelectorAll('#demand-section').forEach(e => e.remove());
+        document.querySelectorAll('.section-nav-link').forEach(e => { if (e.textContent.trim() === 'Demand') e.remove(); });
+    }"""
     with dash_page(browser) as (page, errors):
         main_texts = {}
         for period in ("mtd", "ytd"):
             goto(page, html_flags_off_baseline_path, f"period={period}")
+            page.evaluate(drop_demand)
             baseline_text = page.inner_text("#main")
             goto(page, html_flags_off_current_path, f"period={period}")
             current_text = page.inner_text("#main")
@@ -1421,8 +1429,8 @@ def test_plan_screenshots(browser, html_on_path, plan_data):
 
 FORECAST_TOTAL_BY_MONTH = [491630, 1711710, 1122622, 2406885, 2203277, 2776683, 2256927, 1132102, 978069, 916382, 1847062, 1096873]
 PLAN_TABLE_HEADERS = ["Month", "Plan", "Actual", "Variance", "Var %"]
-FORECAST_TABLE_HEADERS = ["Forecast", "Var vs forecast", "Var vs forecast %"]
-FORECAST_COLS = ("forecast", "variance_vs_forecast", "var_vs_forecast_pct")
+FORECAST_TABLE_HEADERS = ["Forecast", "Var vs forecast", "Var vs forecast %", "Fcst vs plan", "Fcst vs plan %"]
+FORECAST_COLS = ("forecast", "variance_vs_forecast", "var_vs_forecast_pct", "forecast_vs_plan", "forecast_vs_plan_pct")
 PLAN_COLS = ("plan", "actual", "variance", "var_pct")
 
 
@@ -1460,6 +1468,14 @@ def _apply_forecast_rows(out, rows):
         else:
             r["variance_vs_forecast"] = None
             r["variance_vs_forecast_pct"] = None
+        # forecast vs plan: forecast minus plan wherever both exist (future months included)
+        plan = r.get("plan_gross")
+        if f is not None and plan is not None:
+            r["forecast_vs_plan"] = f - plan
+            r["forecast_vs_plan_pct"] = round((f - plan) / plan * 100, 1) if plan else None
+        else:
+            r["forecast_vs_plan"] = None
+            r["forecast_vs_plan_pct"] = None
     keys = set(by)
     meta = out["revenue_plan_meta"]
     meta["forecast_available"] = bool(rows)
@@ -1762,7 +1778,9 @@ def test_no_forecast_available_renders_as_today(browser, html_on_path, forecast_
             legend = page.inner_text("#channel-trend-legend")
             n_item = page.eval_on_selector_all("#trend-forecast-legend-item", "els => els.length")
             n_fc = page.eval_on_selector_all("#channel-trend-viz path.forecast-line, #channel-trend-viz path.forecast-pt", "els => els.length")
-            n_cells = page.eval_on_selector_all("#plan-vs-actual-table td[data-col='forecast']", "els => els.length")
+            n_cells = page.eval_on_selector_all(
+                "#plan-vs-actual-table td[data-col='forecast'], #plan-vs-actual-table td[data-col='forecast_vs_plan']", "els => els.length"
+            )
             basis = page.inner_text("#channel-trend-basis")
             sub = page.inner_text("#plan-vs-actual-sub")
             section_sub = page.inner_text("#channel-section-sub")
@@ -1772,6 +1790,69 @@ def test_no_forecast_available_renders_as_today(browser, html_on_path, forecast_
         assert n_fc == 0 and n_cells == 0, path.name
         for text in (basis, sub, section_sub):
             assert "forecast" not in text.lower(), (path.name, text)
+
+
+def test_forecast_vs_plan_columns(browser, forecast_fixture, pva_by_key_month, plan_by_key_month, asof_ym, default_range_months):
+    """Forecast versus plan (the CFO's Tracking-tab block): forecast minus plan per month, future
+    months included; aggregated as sum(forecast) minus sum(plan) over the months the plan side shows."""
+    path, fc = forecast_fixture
+    year = default_range_months[0][:4]
+    jan = f"{year}-01"
+    with dash_page(browser) as (page, errors):
+        goto(page, path)
+        headers = _table_headers(page)
+        rows = _table_rows(page)
+        hit = page.locator("#channel-trend-viz svg rect[fill='transparent']")
+        hit.scroll_into_view_if_needed()
+        box = hit.bounding_box()
+        page.mouse.move(box["x"] + box["width"] * 0.30, box["y"] + box["height"] / 2)
+        tooltip = page.inner_text("#tooltip")
+        caption = page.inner_text("#plan-vs-actual-sub")
+        page.select_option("#channel-trend-plan-select", sorted(plan_by_key_month)[0])
+        channel_rows = _table_rows(page)
+    assert not errors, errors
+    assert headers[-2:] == ["Fcst vs plan", "Fcst vs plan %"], headers
+    assert "fcst vs plan = forecast minus plan" in caption, caption
+    assert "Forecast vs plan" in tooltip, tooltip
+    # January on the total row: the fixture's 491,630 forecast minus the extract's plan (376,239.20 today)
+    jan_plan = pva_by_key_month["total"][jan]["plan_gross"]
+    assert_close(rows[f"month:{jan}"]["forecast_vs_plan"], 491630.0 - jan_plan, CURRENCY_TOL, "January forecast vs plan")
+    assert_close(rows[f"month:{jan}"]["forecast_vs_plan_pct"], round((491630.0 - jan_plan) / jan_plan * 100, 1), PERCENT_TOL, "January forecast vs plan %")
+    plan_by_ym = {}
+    for ym in default_range_months:
+        r = rows[f"month:{ym}"]
+        plan_by_ym[ym] = pva_by_key_month["total"][ym]["plan_gross"]
+        assert_close(r["forecast_vs_plan"], fc[ym] - plan_by_ym[ym], CURRENCY_TOL, f"{ym} forecast vs plan (future months included)")
+    for q in range(1, 5):
+        qm = [f"{year}-{m:02d}" for m in range(3 * q - 2, 3 * q + 1)]
+        elapsed = [m for m in qm if m <= asof_ym]
+        shown = elapsed if elapsed and len(elapsed) < len(qm) else qm
+        exp = sum(fc[m] for m in shown) - sum(plan_by_ym[m] for m in shown)
+        assert_close(rows[f"quarter:{year}-Q{q}"]["forecast_vs_plan"], exp, CURRENCY_TOL, f"Q{q} forecast vs plan")
+    through = [m for m in default_range_months if m <= asof_ym]
+    ytd_exp = sum(fc[m] for m in through) - sum(plan_by_ym[m] for m in through)
+    assert_close(rows["ytd"]["forecast_vs_plan"], ytd_exp, CURRENCY_TOL, "YTD forecast vs plan")
+    fy_exp = sum(fc.values()) - rows["fy"]["plan"]
+    assert_close(rows["fy"]["forecast_vs_plan"], fy_exp, CURRENCY_TOL, "full-year forecast vs plan = sum(forecast) minus sum(plan)")
+    assert_close(rows["fy"]["forecast_vs_plan_pct"], fy_exp / rows["fy"]["plan"] * 100, PERCENT_TOL, "full-year forecast vs plan %")
+    for rid, cols in channel_rows.items():
+        assert cols.get("forecast_vs_plan") is None and cols.get("forecast_vs_plan_pct") is None, f"channel {rid} should be blank"
+
+
+def test_demand_section_removed(browser, html_on_path, latest_data):
+    """Owner ruling 2026-09-29: x-vs-actuals on the page is dollars by channel and in total only.
+    The data may still carry demand_vs_actual; the page renders no Demand section."""
+    with dash_page(browser) as (page, errors):
+        goto(page, html_on_path)
+        n_section = page.eval_on_selector_all("#demand-section, #demand-chart, #demand-table, #demand-cost-table", "els => els.length")
+        nav = page.eval_on_selector_all("#section-nav .section-nav-link", "els => els.map(e => e.textContent.trim())")
+        body = page.inner_text("body")
+    assert not errors, errors
+    assert n_section == 0, "Demand vs actuals section must not render"
+    assert nav and nav[-1] == "Working capital", nav
+    assert "Demand" not in nav, nav
+    assert "Demand vs actuals" not in body
+    assert "demand_vs_actual" in latest_data, "the extract still carries the data; only the page section is gone"
 
 
 def test_forecast_no_new_phone_overflow(browser, html_on_path, forecast_fixture):
