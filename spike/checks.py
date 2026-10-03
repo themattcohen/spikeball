@@ -12,7 +12,9 @@ CLI:
       --data spike/data/latest.json [--prev-state spike/data/state.json]
 Exits 0 iff `all_pass`; always prints the full `meta.checks` JSON to stdout first, so a
 non-zero exit is diagnosable without re-running. Read-only: never touches NetSuite or Amazon
-directly (it only reads local JSON files already produced by `extract.py`).
+directly from the CLI (it only reads local JSON files already produced by `extract.py`); the
+extract passes check (g) an `explainer` callable that runs one read-only SuiteQL SELECT per
+moved prior month (created-date rule, see check_g_closed_months_stable).
 
 State-shape note: CONTRACT.md's "Prior-run state" shape is
 `{"pulled_at_mt", "picklist_snapshot", "closed_months": {...}}` -- the minimum needed for
@@ -277,7 +279,132 @@ def _known_artifact_months(D: dict) -> set:
     return months
 
 
-def check_g_closed_months_stable(D: dict, prev_state: dict) -> dict:
+# SuiteQL renders `createddate` (and reads TO_DATE literals compared against it) on the
+# America/Chicago clock for this integration user, DST included: Mountain + 1 hour. Evidence
+# recorded in OPERATIONS.md (2026-10-03 probes: REST createdDate in UTC vs the SuiteQL value
+# differs by exactly 5h in daylight months and 6h in standard months across twelve dates, and the
+# newest transaction read 08:49 while it was 07:58 MT). The earlier assumptions of Pacific and of
+# Mountain were both wrong. Bounds are rendered with zoneinfo so DST follows, as the
+# 'YYYY-MM-DD HH24:MI:SS' string the TO_DATE() in extract.income_by_channel_month expects.
+NS_TZ = ZoneInfo("America/Chicago")
+# The lower bound starts this long BEFORE the baseline's income query to absorb clock skew
+# between this machine and NetSuite. Anything created inside the margin is already in the
+# baseline and would be counted as explained again; that shows up as a negative residual and
+# beyond tolerance fails; a double count inside the 0.5 percent tolerance passes (exposure: 2 minutes of creations).
+BASELINE_SKEW_MARGIN = datetime.timedelta(minutes=2)
+TOP_TYPES = 5
+
+
+def _parse_aware(value) -> datetime.datetime | None:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        dt = datetime.datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        return None
+    return dt
+
+
+def ns_clock(dt: datetime.datetime) -> str:
+    """An aware instant rendered on the clock SuiteQL uses for createddate (America/Chicago), as
+    'YYYY-MM-DD HH24:MI:SS'."""
+    return dt.astimezone(NS_TZ).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def created_window(prev_state: dict, meta: dict, fallback_pulled_at: str | None):
+    """The createddate window (after_ns, through_ns] that explains movement since the baseline,
+    plus how it was derived. Lower edge: the baseline's income_queried_at (the instant its
+    income query ran) minus BASELINE_SKEW_MARGIN. A baseline written before income_queried_at
+    existed has only pulled_at_mt (stamped at extract start, EARLIER than its income query), so
+    that value is used instead (then the run_log fallback) and `legacy` is True: documents
+    created between the stamp and the baseline's income query would be counted twice, so a
+    legacy window passes only on an exactly zero residual. Upper edge: this run's
+    income_queried_at, else its pulled_at_mt (earlier, so any miss under-explains and fails).
+    Returns (after_ns, through_ns, info dict) or (None, None, {"error": str})."""
+    prev_state = prev_state or {}
+    base = _parse_aware(prev_state.get("income_queried_at"))
+    legacy = False
+    base_source = "prior state income_queried_at"
+    if base is None:
+        legacy = True
+        base = _parse_aware(prev_state.get("pulled_at_mt"))
+        base_source = "prior state pulled_at_mt (legacy: no income_queried_at)"
+        if base is None:
+            base = _parse_aware(fallback_pulled_at)
+            base_source = "run_log fallback pulled_at_mt (legacy: no income_queried_at)"
+    if base is None:
+        return None, None, {"error": "no baseline pull time (prior state has neither income_queried_at nor "
+                                      "pulled_at_mt and there is no run_log fallback)"}
+    cur = _parse_aware((meta or {}).get("income_queried_at"))
+    cur_source = "this run income_queried_at"
+    if cur is None:
+        cur = _parse_aware((meta or {}).get("pulled_at_mt"))
+        cur_source = "this run pulled_at_mt (no income_queried_at)"
+    if cur is None:
+        return None, None, {"error": "this run has neither income_queried_at nor pulled_at_mt"}
+    return (ns_clock(base - BASELINE_SKEW_MARGIN), ns_clock(cur),
+            {"legacy_baseline": legacy, "baseline_source": base_source, "through_source": cur_source,
+             "baseline_instant": base.isoformat(), "through_instant": cur.isoformat()})
+
+
+def _pct(delta: float, base: float) -> float:
+    return abs(delta) / base * 100.0 if base else 0.0
+
+
+def explain_month_by_created_date(ym: str, prev: dict, cur: dict, rows: list, exact: bool = False) -> dict:
+    """Pure arithmetic: `rows` are the Income rows of month `ym` for transactions created since
+    the baseline ([{ttype, amt (GL sign), ntxn}] -- revenue is -amt, same sign rule as the
+    extract). residual = (current - baseline) - explained, for revenue and for ntxn. `exact`
+    (legacy baseline) requires a zero residual instead of the 0.5% tolerance."""
+    by_type: dict = {}
+    for r in rows or []:
+        t = r.get("ttype") or "unknown"
+        e = by_type.setdefault(t, {"ntxn": 0, "revenue": 0.0})
+        e["ntxn"] += int(r.get("ntxn") or 0)
+        e["revenue"] += -float(r.get("amt") or 0.0)
+    explained_rev = round(sum(e["revenue"] for e in by_type.values()), 2)
+    explained_ntxn = sum(e["ntxn"] for e in by_type.values())
+    for e in by_type.values():
+        e["revenue"] = round(e["revenue"], 2)
+
+    prev_rev = prev.get("revenue", 0.0) or 0.0
+    cur_rev = cur.get("revenue", 0.0) or 0.0
+    prev_ntxn = prev.get("ntxn", 0) or 0
+    cur_ntxn = cur.get("ntxn", 0) or 0
+    residual_rev = round((cur_rev - prev_rev) - explained_rev, 2) + 0.0  # + 0.0 turns -0.0 into 0.0
+    residual_ntxn = (cur_ntxn - prev_ntxn) - explained_ntxn
+    rev_base = abs(prev_rev) if prev_rev else abs(cur_rev)
+    ntxn_base = abs(prev_ntxn) if prev_ntxn else abs(cur_ntxn)
+    rev_res_pct = _pct(residual_rev, rev_base)
+    ntxn_res_pct = _pct(residual_ntxn, ntxn_base)
+    top = sorted(by_type.items(), key=lambda kv: (-abs(kv[1]["revenue"]), -kv[1]["ntxn"], kv[0]))[:TOP_TYPES]
+    return {
+        "ym": ym,
+        "baseline": {"revenue": round(prev_rev, 2), "ntxn": prev_ntxn},
+        "current": {"revenue": round(cur_rev, 2), "ntxn": cur_ntxn},
+        "explained": {"revenue": explained_rev, "ntxn": explained_ntxn,
+                      "top_types": {t: e for t, e in top}},
+        "residual": {"revenue": residual_rev, "ntxn": residual_ntxn,
+                     "revenue_pct": round(rev_res_pct, 4), "ntxn_pct": round(ntxn_res_pct, 4)},
+        "within_tolerance": (abs(residual_rev) < 0.005 and residual_ntxn == 0) if exact else (
+            rev_res_pct <= CLOSED_MONTH_TOLERANCE_PCT and ntxn_res_pct <= CLOSED_MONTH_TOLERANCE_PCT),
+    }
+
+
+def check_g_closed_months_stable(D: dict, prev_state: dict, explainer=None,
+                                 baseline_fallback_pulled_at: str | None = None) -> dict:
+    """Prior months (every trailing month before the as-of month) must not move versus the
+    prior run's snapshot, except by transactions CREATED since that snapshot was pulled
+    (owner ruling 2026-10-03, PRD-v2 Section 12 V2R10). A month inside the 0.5% tolerance is
+    never queried. A month beyond it passes only if `explainer(ym, after_ns, through_ns)` -- the
+    Income rows of that month created in that window (see created_window) -- accounts for the movement down to
+    the tolerance, for revenue and ntxn separately; otherwise it fails on the residual
+    (edits, deletions, extract errors). meta.known_artifacts months are exempt as before.
+    The baseline pull time is prev_state['pulled_at_mt'], else `baseline_fallback_pulled_at`
+    (the last published run's pulled_at_mt from run_log); with neither, or without an
+    explainer, a moved month fails as it did before the created-date rule."""
     meta = D.get("meta", {})
     trailing = meta.get("trailing_months", []) or []
     if len(trailing) < 2:
@@ -291,8 +418,11 @@ def check_g_closed_months_stable(D: dict, prev_state: dict) -> dict:
     cur_totals = _closed_month_totals(D)
     known_artifact_months = _known_artifact_months(D)
 
+    after_ns, through_ns, win = created_window(prev_state, meta, baseline_fallback_pulled_at)
+
     problems = []
     checked = []
+    notes = {}
     for ym in closed_months:
         prev = prev_closed.get(ym)
         if not prev:
@@ -312,17 +442,50 @@ def check_g_closed_months_stable(D: dict, prev_state: dict) -> dict:
         exceeds = rev_swing_pct > CLOSED_MONTH_TOLERANCE_PCT or ntxn_swing_pct > CLOSED_MONTH_TOLERANCE_PCT
         detail = (f"{ym}: revenue swing {rev_swing_pct:.2f}% (prev {prev_rev} -> {cur_rev}), "
                   f"ntxn swing {ntxn_swing_pct:.2f}% (prev {prev_ntxn} -> {cur_ntxn})")
-        if exceeds:
-            if ym in known_artifact_months:
-                checked.append(f"{detail} -- covered by meta.known_artifacts")
-            else:
-                problems.append(f"{detail} exceeds {CLOSED_MONTH_TOLERANCE_PCT}% and is not in meta.known_artifacts")
-        else:
+        if not exceeds:
             checked.append(detail)
+            continue
+        if ym in known_artifact_months:
+            checked.append(f"{detail} -- covered by meta.known_artifacts")
+            continue
 
-    if problems:
-        return _fail("; ".join(problems))
-    return _ok("; ".join(checked) if checked else "no closed months with prior data to compare")
+        unexplained = f"{detail} exceeds {CLOSED_MONTH_TOLERANCE_PCT}% and is not in meta.known_artifacts"
+        if explainer is None or after_ns is None:
+            why = "no created-date explainer available" if explainer is None else win["error"]
+            problems.append(f"{unexplained}; cannot explain by created date: {why}")
+            continue
+        try:
+            rows = explainer(ym, after_ns, through_ns)
+        except Exception as e:  # noqa: BLE001 -- an unqueryable explanation must fail, never pass
+            problems.append(f"{unexplained}; created-date query failed: {str(e)[:300]}")
+            continue
+        res = explain_month_by_created_date(ym, prev, cur, rows, exact=win["legacy_baseline"])
+        res["created_window_ns_clock"] = {"after": after_ns, "through": through_ns}
+        res.update({k: v for k, v in win.items() if k != "legacy_baseline"})
+        res["legacy_baseline"] = win["legacy_baseline"]
+        if win["legacy_baseline"]:
+            res["legacy_note"] = ("baseline has no income_queried_at; window starts at its pulled_at_mt, so "
+                                  "documents created between that stamp and the baseline income query would be "
+                                  "counted twice; passes only on an exactly zero residual (one-time case)")
+        notes[ym] = res
+        exp, rsd = res["explained"], res["residual"]
+        summary = (f"{ym}: moved revenue {round(cur_rev - prev_rev, 2)}, ntxn {cur_ntxn - prev_ntxn}; "
+                   f"explained by transactions created in ({after_ns}, {through_ns}] (NetSuite clock): "
+                   f"revenue {exp['revenue']}, ntxn {exp['ntxn']}; "
+                   f"residual revenue {rsd['revenue']} ({rsd['revenue_pct']}%), ntxn {rsd['ntxn']} ({rsd['ntxn_pct']}%)")
+        if res["within_tolerance"]:
+            checked.append(f"{summary} -- explained by created date")
+        else:
+            limit = "is not exactly zero (legacy baseline)" if win["legacy_baseline"] else \
+                f"exceeds {CLOSED_MONTH_TOLERANCE_PCT}%"
+            problems.append(f"{summary} -- residual {limit} "
+                            f"(unexplained movement: edits, deletions or extract error)")
+
+    out = _fail("; ".join(problems)) if problems else _ok(
+        "; ".join(checked) if checked else "no closed months with prior data to compare")
+    if notes:
+        out["explained_by_created_date"] = notes
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -404,7 +567,8 @@ def check_t5_bom_rule(D: dict) -> dict:
 # Orchestration
 # ---------------------------------------------------------------------------
 
-def run_checks(D: dict, prev_state: dict | None = None) -> dict:
+def run_checks(D: dict, prev_state: dict | None = None, explainer=None,
+               baseline_fallback_pulled_at: str | None = None) -> dict:
     prev_state = prev_state or {}
     checks = {
         "a_channel_foot": check_a_channel_foot(D),
@@ -413,7 +577,7 @@ def run_checks(D: dict, prev_state: dict | None = None) -> dict:
         "d_fresh": check_d_fresh(D),
         "e_asof": check_e_asof(D),
         "f_picklist_stable": check_f_picklist_stable(D, prev_state),
-        "g_closed_months_stable": check_g_closed_months_stable(D, prev_state),
+        "g_closed_months_stable": check_g_closed_months_stable(D, prev_state, explainer, baseline_fallback_pulled_at),
         "t5_bom_rule": check_t5_bom_rule(D),
     }
     checks["all_pass"] = all(v["pass"] for v in checks.values())

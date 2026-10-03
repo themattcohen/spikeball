@@ -282,20 +282,61 @@ def get_location_lookup(env):
 # NetSuite: raw query builders (shapes proven in research/probes/01,03,04,07,09,10)
 # ---------------------------------------------------------------------------
 
-def income_by_channel_month(env, start, end):
+def income_by_channel_month(env, start, end, created_after_ns=None, created_through_ns=None, by_type=False):
+    """The one definition of month revenue and ntxn (Income-type accounting lines, posting = T).
+    `created_after_ns` / `created_through_ns` ('YYYY-MM-DD HH24:MI:SS' strings on the clock
+    SuiteQL renders `createddate` in, which is America/Chicago for this integration user -- see
+    OPERATIONS.md) restrict to transactions created after the first and up to the second
+    (inclusive); `by_type` splits rows by transaction type. They exist only so checks.py
+    check (g) can explain a prior month's movement by created date with the SAME revenue/ntxn
+    definition the extract uses."""
+    created = ""
+    if created_after_ns:
+        created += f" AND t.createddate > TO_DATE('{created_after_ns}','YYYY-MM-DD HH24:MI:SS')"
+    if created_through_ns:
+        created += f" AND t.createddate <= TO_DATE('{created_through_ns}','YYYY-MM-DD HH24:MI:SS')"
+    type_sel = ", t.type AS ttype" if by_type else ""
+    type_grp = ", t.type" if by_type else ""
     sql = f"""
-        SELECT TO_CHAR(t.trandate,'YYYY-MM') AS ym, tl.cseg_appf_channel AS chan, SUM(ai.amount) AS amt,
+        SELECT TO_CHAR(t.trandate,'YYYY-MM') AS ym, tl.cseg_appf_channel AS chan{type_sel}, SUM(ai.amount) AS amt,
                COUNT(DISTINCT t.id) AS ntxn
         FROM transactionaccountingline ai
         JOIN transactionline tl ON tl.transaction = ai.transaction AND tl.id = ai.transactionline
         JOIN transaction t ON t.id = ai.transaction
         JOIN account a ON a.id = ai.account
         WHERE ai.posting = 'T' AND a.accttype = 'Income'
-          AND t.trandate >= TO_DATE('{start}','YYYY-MM-DD') AND t.trandate <= TO_DATE('{end}','YYYY-MM-DD')
-        GROUP BY TO_CHAR(t.trandate,'YYYY-MM'), tl.cseg_appf_channel
-        ORDER BY TO_CHAR(t.trandate,'YYYY-MM'), tl.cseg_appf_channel
+          AND t.trandate >= TO_DATE('{start}','YYYY-MM-DD') AND t.trandate <= TO_DATE('{end}','YYYY-MM-DD'){created}
+        GROUP BY TO_CHAR(t.trandate,'YYYY-MM'), tl.cseg_appf_channel{type_grp}
+        ORDER BY TO_CHAR(t.trandate,'YYYY-MM'), tl.cseg_appf_channel{type_grp}
     """
     return suiteql(env, sql)
+
+
+def counted_channels(channels):
+    """The channel rows every month total is built from: the picklist channels plus Unassigned.
+    build_pnl_by_channel_month (baseline and current totals) and the check (g) explainer both
+    use this, so a channel outside the picklist can be neither counted-only nor explained-only."""
+    return list(channels) + [{"id": None, "name": "Unassigned"}]
+
+
+def counted_channel_ids(channels):
+    return {c["id"] for c in counted_channels(channels)}
+
+
+def make_created_since_explainer(env, channels):
+    """Returns the `explainer(ym, after_ns, through_ns)` callable checks.py check (g) uses: the
+    Income rows of month `ym` with createddate in (after_ns, through_ns], as
+    [{chan, ttype, amt, ntxn}] (GL sign, so revenue is -amt), restricted to counted_channels.
+    Read-only SELECT through the extract's own income_by_channel_month."""
+    ids = counted_channel_ids(channels)
+
+    def explainer(ym, after_ns, through_ns):
+        year, month = int(ym[:4]), int(ym[5:7])
+        last = calendar.monthrange(year, month)[1]
+        rows = income_by_channel_month(env, f"{ym}-01", f"{ym}-{last:02d}", created_after_ns=after_ns,
+                                       created_through_ns=through_ns, by_type=True)
+        return [r for r in rows if to_int_or_none(r.get("chan")) in ids]
+    return explainer
 
 
 def cogs_by_channel_month(env, start, end):
@@ -550,6 +591,10 @@ def orders_by_channel_query(env, start, end):
 # ---------------------------------------------------------------------------
 
 def build_pnl_by_channel_month(env, D, channels):
+    # Stamped just before the income query: check (g) bounds "created since the baseline" by
+    # the instant the baseline's (and this run's) income figures were read, not by the earlier
+    # extract-start stamp pulled_at_mt.
+    D["income_queried_at"] = datetime.datetime.now(MT).isoformat()
     inc_rows = income_by_channel_month(env, D["trailing_start"], D["asof"])
     cogs_rows = cogs_by_channel_month(env, D["trailing_start"], D["asof"])
     py_inc_rows = income_by_channel_month(env, D["py_trailing_start"], D["py_asof"])
@@ -582,7 +627,7 @@ def build_pnl_by_channel_month(env, D, channels):
         e["cogs"] += fnum(r["amt"])
 
     out = []
-    chan_list = channels + [{"id": None, "name": "Unassigned"}]
+    chan_list = counted_channels(channels)
     for ym in D["trailing_months"]:
         py_ym = f"{int(ym[:4]) - 1}-{ym[5:]}"
         for c in chan_list:
@@ -1501,6 +1546,7 @@ def build_write_state(output: dict) -> dict:
 
     return {
         "pulled_at_mt": output["meta"]["pulled_at_mt"],
+        "income_queried_at": output["meta"].get("income_queried_at"),
         "picklist_snapshot": output.get("picklist_snapshot", {"channels": {}, "regions": {}}),
         "closed_months": closed_months,
         "sections": {name: {"rows": s.get("rows", 0)} for name, s in output["meta"]["sections"].items()},
@@ -1544,7 +1590,9 @@ def main_recheck(args):
         else:
             print(f"[extract] WARNING: --prev-state {p} does not exist; checks (c)/(f)/(g) run as 'no prior state'", file=sys.stderr)
 
-    checks_result = run_checks(output, prev_state)
+    checks_result = run_checks(output, prev_state,
+                               explainer=make_created_since_explainer(env, output.get("channels") or []),
+                               baseline_fallback_pulled_at=args.baseline_pulled_at)
     meta["checks"] = checks_result
 
     out_path = Path(args.out) if args.out else recheck_path
@@ -1590,6 +1638,10 @@ def main():
                          help="Write the small prior-run state JSON to PATH (for a future run's --prev-state)")
     parser.add_argument("--prev-state", default=None,
                          help="Path to a prior --write-state file; feeds checks.py checks (c), (f), (g)")
+    parser.add_argument("--baseline-pulled-at", default=None,
+                         help="ISO timestamp of the baseline's pull, used by check (g) only when the "
+                              "prior state carries no pulled_at_mt (run_nightly.py passes the last "
+                              "published run_log pulled_at_mt)")
     parser.add_argument("--demand-plan", default=None,
                          help="Path to the parsed Demand Plan JSON written by demand_plan.py "
                               "(run_nightly.py wires this in; never fetched by this script itself). "
@@ -1848,6 +1900,7 @@ def main():
     output = {
         "meta": {
             "pulled_at_mt": now_dt.isoformat(),
+            "income_queried_at": D.get("income_queried_at"),
             "asof_date": D["asof"],
             "asof_override": asof_override,
             "period_rule": "through_yesterday_close",
@@ -1909,7 +1962,8 @@ def main():
         else:
             print(f"[extract] WARNING: --prev-state {p} does not exist; checks (c)/(f)/(g) run as 'no prior state'", file=sys.stderr)
 
-    checks_result = run_checks(output, prev_state)
+    checks_result = run_checks(output, prev_state, explainer=make_created_since_explainer(env, channels),
+                               baseline_fallback_pulled_at=args.baseline_pulled_at)
     output["meta"]["checks"] = checks_result
     # v2 checks are informational: recorded under meta.checks_v2, NEVER folded into all_pass,
     # so a v2 parity problem cannot block the v1 dashboard the CFO relies on (prod-safe split).

@@ -104,8 +104,9 @@ standardize on one dashboard.
 
 Channel sum equals ledger total (within 0.01, re-run once if a posting lands mid-check); inventory replica
 equals NetSuite item value; every section returned rows; the as-of date is yesterday MT; channel and region
-labels unchanged since the prior run; closed months unchanged beyond 0.5% unless a known adjustment is
-listed; the SKU method proof. A failing run writes nothing, leaves the previous night's page and Sheet in
+labels unchanged since the prior run; closed months unchanged beyond 0.5% unless the movement is fully
+explained by transactions created since the prior run (late postings into a month NetSuite still has open)
+or a known adjustment is listed; the SKU method proof. A failing run writes nothing, leaves the previous night's page and Sheet in
 place, and emails the alert address.
 
 ## When something looks wrong
@@ -115,6 +116,27 @@ place, and emails the alert address.
   https://claude.ai/code/routines to read the log. Most causes: a NetSuite credential or role change, an
   Amazon token expiry, a renamed channel or region picklist value (deliberately blocks publishing until
   acknowledged), or Google API access revoked.
+- The alert names `g_closed_months_stable` with a residual: a prior month's revenue or transaction count
+  moved by more than the transactions created since the last run can account for. The alert text gives, per
+  month, the baseline, the current figure, the part explained by new transactions and the residual
+  (revenue and count). A residual means history changed some other way: an older transaction was edited or
+  deleted, or the extract returned a wrong figure. Nothing is published and the baseline does not advance,
+  so every night repeats the failure until the cause is fixed. Find the transactions dated in that month
+  whose last-modified date is after the last good run (or that no longer exist), correct or accept them, and
+  rerun. Late postings dated into an older month (for example refund credit memos created after month end)
+  are explained automatically and do not fail.
+  How "created since the last run" is measured: transactions of that month whose `createddate` is after the
+  last good run's income read (the `income_queried_at` stored in its state, minus 2 minutes of clock skew)
+  and up to this run's income read. The first run after this rule shipped has a state without that time and
+  uses its `pulled_at_mt` instead; that run passes only on a residual of exactly zero. NetSuite SuiteQL
+  renders and compares `createddate` on the America/Chicago clock for this integration user (Mountain + 1
+  hour, DST included), so the window is converted to that clock. Evidence, read-only probes 2026-10-03: the
+  REST record `createdDate` (UTC) converted to America/Chicago equals the SuiteQL value for all 8 dates
+  tested, which span both sides of the March and November changes (2026-03-05 offset 6h from UTC,
+  2026-03-12 offset 5h, 2025-10-28 offset 5h, 2025-11-05 offset 6h); the newest transaction read 08:49
+  while the Mountain wall clock was 07:58; a literal filter of 08:49:15 to 08:49:17 matched that
+  transaction (1 row) and the same filter one hour earlier matched none. Mountain and Pacific were both
+  tried first and are wrong.
 - A channel or region was renamed in NetSuite: expected to block once. Acknowledge by running the extract
   with the previous state and confirming the new labels; the next run records the new names.
 - A new channel id appears in NetSuite: add it to `spike/config/rollups.json` in the code repository under

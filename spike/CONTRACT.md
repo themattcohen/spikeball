@@ -16,6 +16,8 @@ revenue positive, cogs positive. Dates `YYYY-MM-DD` America/Denver. `pulled_at_m
   "g_closed_months_stable": {...}, "t5_bom_rule": {...}, "all_pass": bool }`. Producer: `checks.py`.
   `f` and `g` compare against `--prev-state` (see below); when no prior state exists they pass with
   detail "no prior state".
+  `g` may also carry `explained_by_created_date` (per month: baseline, current, explained by type,
+  residual) when a prior month moved beyond tolerance and was explained or failed on the residual.
 - `pnl_by_channel_month[*]` gains `revenue_py`, `cogs_py` (same calendar month, prior year).
 - `inventory.onhand_by_item_location[*]` gains `item_class` (NetSuite item class name or null),
   `location_country`, `location_state`, `location_city` (from the location record; null when blank).
@@ -58,7 +60,8 @@ revenue positive, cogs positive. Dates `YYYY-MM-DD` America/Denver. `pulled_at_m
 
 ## Prior-run state (for checks f and g)
 
-`checks.py` accepts `--prev-state PATH`, a small JSON: `{"pulled_at_mt", "picklist_snapshot",
+`checks.py` accepts `--prev-state PATH`, a small JSON: `{"pulled_at_mt", "income_queried_at" (instant
+just before the income query; check g's window edge), "picklist_snapshot",
 "closed_months": {"YYYY-MM": {"revenue", "cogs", "ntxn"}}}`. `extract.py --write-state PATH` writes
 the same shape from the current run. `publish_bq.py` stores/fetches it as the `run_state` table so the
 routine (fresh clone each night) can compare with the previous night; local file fallback.

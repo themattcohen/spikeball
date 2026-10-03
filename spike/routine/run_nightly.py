@@ -268,12 +268,51 @@ def fetch_revenue_plan_step(args):
     return str(out_path)
 
 
+def refresh_local_state_fallback(state_new_path):
+    """Copy this run's state over the local fallback baseline (data/state_prev.json). Called only
+    AFTER the checks gate passes: a failed run's state must never become the next baseline."""
+    if not state_new_path.is_file():
+        return False
+    try:
+        shutil.copyfile(state_new_path, SPIKE / "data" / "state_prev.json")
+        print(f"[run_nightly] refreshed local state fallback: {SPIKE / 'data' / 'state_prev.json'}")
+        return True
+    except OSError as e:
+        print(f"[run_nightly] WARNING could not refresh local state fallback: {e}")
+        return False
+
+
+def baseline_pulled_at_fallback(args, prev_state_path):
+    """check (g)'s created-date rule needs the baseline's pull time. The prior state carries
+    it (`pulled_at_mt`); only when it does not, return the last published run's pulled_at_mt
+    from the Sheet run_log as an ISO string, else None."""
+    if prev_state_path:
+        try:
+            with open(prev_state_path, encoding="utf-8") as f:
+                if json.load(f).get("pulled_at_mt"):
+                    return None
+        except (OSError, json.JSONDecodeError):
+            pass
+    sheet_id = args.sheet or os.environ.get("SPIKEBALL_FINANCE_SHEET_ID")
+    if not sheet_id:
+        return None
+    try:
+        last = refresh_gate.read_run_log_last_success(sheet_id)
+    except Exception as e:  # noqa: BLE001 -- the fallback is best effort; check (g) fails closed without it
+        print(f"[run_nightly] WARNING run_log fallback for the baseline pull time failed: {e}")
+        return None
+    return last.isoformat() if last else None
+
+
 def run_extract(args, prev_state_path, demand_plan_path=None, revenue_plan_path=None):
     out_path = SPIKE / "data" / "latest.json"
     state_new_path = SPIKE / "data" / "state_new.json"
     cmd = [sys.executable, str(SPIKE / "extract.py"), "--out", str(out_path)]
     if prev_state_path:
         cmd += ["--prev-state", str(prev_state_path)]
+    fallback = baseline_pulled_at_fallback(args, prev_state_path)
+    if fallback:
+        cmd += ["--baseline-pulled-at", fallback]
     if demand_plan_path:
         cmd += ["--demand-plan", str(demand_plan_path)]
     if revenue_plan_path:
@@ -372,16 +411,10 @@ def run_pipeline(args, trigger="nightly", request_row=""):
                             f"meta.checks.all_pass=true -- unexplained nonzero exit, treating as a "
                             f"crash: {tail}{extract_crash_note()}", args), False, None
 
-    if state_new_path.is_file():
-        try:
-            shutil.copyfile(state_new_path, SPIKE / "data" / "state_prev.json")
-            print(f"[run_nightly] refreshed local state fallback: {SPIKE / 'data' / 'state_prev.json'}")
-        except OSError as e:
-            print(f"[run_nightly] WARNING could not refresh local state fallback: {e}")
-
     if not all_pass:
         return fail(2, f"checks failed: {detail}", args), False, None
     print(f"[run_nightly] checks passed: {detail}")
+    refresh_local_state_fallback(state_new_path)
     try:
         state_sync.upload()
     except Exception as e:  # noqa: BLE001
