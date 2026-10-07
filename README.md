@@ -19,7 +19,7 @@ instead of downloading a code bundle.
   month-range control, and the code export that populates this repository.
 - `requirements.txt` -- the Python packages the routine installs before it runs.
 - `.claude/settings.json` -- the allow-list of commands the routine's session may run
-  without a prompt (pip install, the nightly script, alert.py, pytest, and a handful of
+  without a prompt (pip install through python3 -m pip, the nightly script, alert.py, pytest, and a handful of
   read-only shell utilities the prompt uses for polling and diagnostics). No command
   outside this list runs unattended.
 
@@ -40,8 +40,8 @@ should never leave the maintainer's side.
 ## Running the tests
 
 ```
-pip install -r requirements.txt
-pip install pytest
+python3 -m pip install -r requirements.txt
+python3 -m pip install pytest
 python -m pytest tests -q
 ```
 
@@ -53,7 +53,7 @@ machine without a browser available.
 ## Running the tests
 
 ```bash
-pip install -r requirements-dev.txt
+python3 -m pip install -r requirements-dev.txt
 python3 -m patchright install chromium   # only for the browser DOM tests
 python3 -m pytest tests -q
 ```

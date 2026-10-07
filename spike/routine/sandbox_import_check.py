@@ -33,8 +33,12 @@ def _blocked(name, *args, **kwargs):
 def main():
     builtins.__import__ = _blocked
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # spike/
+    sys.path.insert(0, str(Path(__file__).resolve().parent))  # spike/routine/
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "gm_recon"))  # spike/gm_recon/
     failed = None
-    for mod in ("extract_v2", "extract_v2_bs", "extract_v2_bs_snapshot", "checks_v2", "extract", "demand_plan"):
+    for mod in ("extract_v2", "extract_v2_bs", "extract_v2_bs_snapshot", "checks_v2", "extract", "demand_plan",
+                # monthly gross-margin reconciliation: openpyxl only inside workbook.write_workbook()
+                "rules", "ns_queries", "amazon_cache", "compute", "workbook", "deliver", "run_recon"):
         try:
             __import__(mod)
         except ModuleNotFoundError as e:  # a local-only dep imported at module level

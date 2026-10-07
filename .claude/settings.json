@@ -2,11 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(pip install:*)",
+      "Bash(python3 -m pip install:*)",
       "Bash(python3 spike/routine/run_nightly.py:*)",
       "Bash(python3 spike/routine/alert.py:*)",
+      "Bash(python3 spike/gm_recon/run_recon.py:*)",
       "Bash(python3 -m pytest:*)",
       "Bash(python3 -m patchright install:*)",
       "Bash(nohup python3 spike/routine/run_nightly.py:*)",
+      "Bash(nohup python3 spike/gm_recon/run_recon.py:*)",
       "Bash(timeout:*)",
       "Bash(tail:*)",
       "Bash(grep:*)",

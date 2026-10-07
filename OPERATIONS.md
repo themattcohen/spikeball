@@ -232,3 +232,28 @@ the header is missing the whole tab is treated as unavailable, the last good cop
 says "Plan is stale"; with no good copy at all the plan controls hide and the page says "Plan not
 available for this run". A plan problem never blocks the rest of the refresh (checks q and r are
 informational).
+
+## Monthly gross margin reconciliation (added 2026-10-07)
+
+A second routine on the same cloud environment, "Spikeball GM reconciliation", runs on the 2nd, 6th and
+10th of each month at 07:00 MT (06:00 MT in winter) and reconciles the previous calendar month. It is the
+monthly close checklist item the CFO asked for on 2026-10-06 after the full-year gross margin review:
+margin as booked, corrected for booking errors, and matched to the period each cost was earned, with the
+entries to make. It reads NetSuite (read-only) and the Amazon order cache the nightly keeps on Drive, and
+writes exactly three things: one workbook to the Drive folder "Spikeball GM Reconciliation", one email to
+the addresses in `SPIKEBALL_RECON_TO` (default `SPIKEBALL_ALERT_TO`), and one row on the Sheet tab
+`gm_recon_log`. It never writes to NetSuite and never touches `run_log` or any tab the nightly writes.
+
+What it checks each month: Amazon settlement journals with missing or partial fee lines (and settlements
+with no journal), fee lines posted outside cost of sales, manual journals on income or cost accounts whose
+counterpart is an equity or SG&A account, true-ups without a reversal, duplicate Amazon invoices or
+credit memos, entries created after month end, Amazon fees by sales month with the month-end accrual to
+book (measured where the settlement has landed, an estimate for sales not yet settled, labelled as such),
+Wengo sourcing fees by purchase-order month, retailer claims by program period where the memo states it,
+refunds by the month Amazon posted them, and Amazon revenue against Amazon's own order data for the
+mature days. Every Summary figure is a formula over the detail sheets.
+
+Reading it and running it on demand: `spike/gm_recon/GM-RECON.md`. The routine prompt is
+`spike/gm_recon/RECON_PROMPT.md`. Three runs a month by design: the day-2 run gives the first view and the
+accrual to book, the later runs replace the estimate with measured fees as Amazon settlements land; the
+day-10 workbook is the one to file with the close.

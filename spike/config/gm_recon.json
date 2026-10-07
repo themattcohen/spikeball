@@ -1,0 +1,69 @@
+{
+  "_doc": "Constants for spike/gm_recon (monthly gross-margin reconciliation). Read-only reference values; amounts and dates are computed in code. Edit here, not in the modules.",
+  "fx_to_usd": {"USD": 1.0, "CAD": 0.71575, "GBP": 1.35},
+  "fx_note": "Fixed rates used by the full-year gross margin review for settlement fees and credit memos. Not queried live.",
+  "settlement_account_marketplace": {"1": "US", "2": "CA", "3": "UK"},
+  "marketplace_ids": {"ATVPDKIKX0DER": "US", "A2EUQ1WTGCTBG2": "CA", "A1F83G8C2ARO7P": "UK"},
+  "marketplace_currency": {"US": "USD", "CA": "CAD", "UK": "GBP"},
+  "settlement_journal_creator": "appf Team",
+  "memo": {
+    "fee_line_prefix": "Fee charged by Amazon",
+    "deposit_line": "Amount deposited by Amazon",
+    "variance_line": "Variance amount"
+  },
+  "accounts": {
+    "amazon_flow_through": "10101700",
+    "amazon_flow_through_name": "Amazon Flow Through",
+    "accrued_misc": "20106400",
+    "accrued_misc_name": "Misc - Accrued",
+    "fee_cogs_default": "50100000",
+    "fee_cogs_names": {"50100000": "Cost of Goods Sold", "50300000": "Merchant Account Fees"},
+    "amazon_revenue": "40100000",
+    "wengo_cogs": "50100000"
+  },
+  "settlement_window_days_before": 10,
+  "fee_timing_window_days_before": 45,
+  "journal_match_bank_tolerance": 1.0,
+  "fee_full_ratio_tolerance": 0.01,
+  "fee_lines_outside_cogs": {
+    "_doc": "Amazon fee lines on non-COGS accounts. Only accounts starting with an error prefix (expense side) are E4 errors to reclass to COGS. Accepted accounts are reported as a data note, not reclassed.",
+    "error_account_prefixes": ["6"],
+    "accepted_accounts": {"40105000": "shipping chargebacks; by design, not reclassed"}
+  },
+  "accrual_reversal_window_days": 35,
+  "fee_accrual_memo_words": ["amazon"],
+  "legacy_invoice_lookback_days": 400,
+  "manual_journal": {
+    "accrual_words": ["accrual", "expected on", "payout"],
+    "true_up_words": ["true up", "true-up", "trueup", "amazon"],
+    "counterpart_prefixes_review": ["3", "6"]
+  },
+  "wengo": {
+    "vendor_pattern": "%Wengo%",
+    "po_vendor_pattern": "%River Joint%",
+    "fee_item_prefixes": {"Titan": "S-TTN-001", "Pong": "S-PONG-001"},
+    "fallback_rates": {"Titan": 14.37, "Pong": 2.76},
+    "known_rate_pairs": [[12.49, 2.40], [14.37, 2.76]],
+    "rate_lookback_days": 365,
+    "po_lookback_days": 730
+  },
+  "completeness": {
+    "mature_days": 7,
+    "fine_low": 0.995,
+    "fine_high": 1.005,
+    "uk_vat_rate": 0.20
+  },
+  "estimate": {
+    "include_statuses_exclude": ["Canceled", "Pending", "PendingAvailability"],
+    "marketplaces": ["US", "CA", "UK"]
+  },
+  "drive_folder_name": "Spikeball GM Reconciliation",
+  "env": {
+    "folder_id": "SPIKEBALL_RECON_FOLDER_ID",
+    "recipients": "SPIKEBALL_RECON_TO",
+    "recipients_fallback": "SPIKEBALL_ALERT_TO",
+    "sheet_id": "SPIKEBALL_FINANCE_SHEET_ID"
+  },
+  "log_tab": "gm_recon_log",
+  "log_header": ["run_at_mt", "month", "asof", "as_booked_gm", "corrected_gm", "matched_gm", "n_errors", "n_entries", "drive_link", "verdict", "code_rev"]
+}
