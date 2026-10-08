@@ -13,7 +13,8 @@ Selling Partner API, runs the data checks, and, only if every check passes, writ
 - Google Sheet "Spikeball Finance Data" (mcohen@spikeball.com's Drive):
   https://docs.google.com/spreadsheets/d/1aLGh8fYVKGe-T08-1tZe1eTmWwmBRiPtS12ChmnjMHs
   One tab per dataset; the `meta` tab shows the as-of date, the pull time and every check result; the
-  `run_log` tab has one row per run.
+  `run_log` tab has one row per run; the `alert_log` tab has one row per failure alert, whether it was
+  emailed (`sent`) or held back as a repeat (`suppressed`), see "Checks that gate every refresh".
 - BigQuery dataset `spikeball_finance` in the Google Cloud project `spikeball-coding-automation`
   (Spikeball-owned). Same tables as the Sheet plus Looker-ready views.
 - The dashboard page (Claude Artifact, public unlisted link):
@@ -69,7 +70,9 @@ credential the routine needs -- NetSuite, Google, and Amazon -- is a plain envir
 same cloud environment; there is no secrets manager or separate secrets service anywhere in the path. That
 environment carries `SPIKEBALL_DASH_FEATURES=range_selector,refresh_control` (turns the two controls above
 on for this routine's page only) and `SPIKEBALL_NIGHTLY_SLOT_UTC` (the UTC hour this routine treats as its
-guaranteed nightly run; see `CUTOVER.md` for changing it). The routine above's environment does not set
+guaranteed nightly run; see `CUTOVER.md` for changing it). `SPIKEBALL_ALERT_DEDUPE_HOURS` is optional: the
+number of hours during which a repeat of the same failure does not email again (default 24; 0 turns the
+suppression off so every failing run emails). The routine above's environment does not set
 `SPIKEBALL_DASH_FEATURES`, so its page stays exactly as it is today even though both routines run the same
 code. The commands this routine's prompt runs are declared as allowed in the repository's own
 `.claude/settings.json`, loaded automatically when the routine's session starts.
@@ -109,13 +112,29 @@ explained by transactions created since the prior run (late postings into a mont
 or a known adjustment is listed; the SKU method proof. A failing run writes nothing, leaves the previous night's page and Sheet in
 place, and emails the alert address.
 
+One email per distinct failing reason per 24 hours. The gated routine's hourly check keeps retrying a
+failed day, so without this rule one bad night sent the same email every hour (five copies on 2026-10-07).
+Now the first run that hits a reason emails; a later run inside the window that fails for the same reason
+does not email again and instead adds a `suppressed` row to the Sheet's `alert_log` tab (columns:
+`sent_at_utc`, `sent_at_mt`, `verdict`, `signature`, `action`; the emailed run is the `sent` row above it).
+A different reason emails right away: another check failing, the same check on a different month, or
+the closed-months check plus the channel foot together count as different reasons; the changing numbers
+and timestamps inside an otherwise identical message do not. The window is the environment variable
+`SPIKEBALL_ALERT_DEDUPE_HOURS` (default 24; 0 disables the suppression so every failing run emails). If
+the `alert_log` tab cannot be read or written for any reason, the email is sent as before; the tab is
+created on first use.
+
 ## When something looks wrong
 
 - Page footer says "Data as of <date>, refresh overdue" or "Data checks failed": the previous night's run
   did not publish. The alert email names the failed check. Open the routine's run at
   https://claude.ai/code/routines to read the log. Most causes: a NetSuite credential or role change, an
   Amazon token expiry, a renamed channel or region picklist value (deliberately blocks publishing until
-  acknowledged), or Google API access revoked.
+  acknowledged), or Google API access revoked. The email arrives once per distinct reason per 24 hours
+  (`SPIKEBALL_ALERT_DEDUPE_HOURS`); every later run inside that window that fails the same way is a
+  `suppressed` row on the Sheet's `alert_log` tab, so a quiet inbox after the first email does not mean the
+  failure stopped. Check `alert_log` and `run_log` on the Sheet for what each hourly run did. A new reason
+  emails immediately even inside the window.
 - The alert names `g_closed_months_stable` with a residual: a prior month's revenue or transaction count
   moved by more than the transactions created since the last run can account for. The alert text gives, per
   month, the baseline, the current figure, the part explained by new transactions and the residual

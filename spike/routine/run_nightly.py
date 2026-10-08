@@ -324,7 +324,19 @@ def run_extract(args, prev_state_path, demand_plan_path=None, revenue_plan_path=
     return proc, out_path, state_new_path
 
 
-def fail(code, reason, args, verdict="NIGHTLY_FAIL"):
+def fail(code, reason, args, verdict="NIGHTLY_FAIL", checks=None):
+    """Prints the verdict line, then handles the operator alert. `checks` is the
+    extract's meta.checks dict when the failure is a checks failure; it only feeds the
+    de-duplication signature (alert.alert_signature). Exit code and the printed verdict
+    line never depend on what happens to the alert.
+
+    Alert de-duplication (owner ruling 2026-10-08): one email per distinct failing reason
+    per window (alert.dedupe_window_hours, default 24h). A later run failing for the
+    same reason inside the window prints "alert suppressed" and logs a `suppressed` row
+    on the Sheet's alert_log tab instead of emailing; a run that emails logs a `sent`
+    row only after the send succeeded. --no-alert and --dry-run behave exactly as before
+    this rule existed (dry-run still calls send_alert with dry_run=True and never
+    touches the Sheet); with no Sheet id the alert is sent without de-duplication."""
     print(f"{verdict} {reason}")
     if args.no_alert:
         print("[run_nightly] --no-alert set, skipping alert send")
@@ -332,11 +344,37 @@ def fail(code, reason, args, verdict="NIGHTLY_FAIL"):
     subject = ("Spikeball Finance nightly: FAILED" if verdict == "NIGHTLY_FAIL"
                else "Spikeball Finance nightly: PARTIAL failure")
     body = f"Nightly run reported {verdict} (exit code {code}) at {now_mt_iso()} MT.\n\n{reason}"
-    ok, detail = alert.send_alert(subject, body, dry_run=args.dry_run)
-    if ok:
-        print(f"[run_nightly] alert sent: {detail}")
-    else:
-        print(f"[run_nightly] ALERT SEND FAILED (not fatal to this run's exit code): {detail}")
+
+    def send():
+        ok, detail = alert.send_alert(subject, body, dry_run=args.dry_run)
+        if ok:
+            print(f"[run_nightly] alert sent: {detail}")
+        else:
+            print(f"[run_nightly] ALERT SEND FAILED (not fatal to this run's exit code): {detail}")
+        return ok
+
+    if args.dry_run:
+        send()
+        return code
+
+    signature = alert.alert_signature(code, reason, verdict=verdict, checks=checks)
+    sheet_id = args.sheet or os.environ.get("SPIKEBALL_FINANCE_SHEET_ID")
+    if not sheet_id:
+        print("[run_nightly] no Sheet id available (SPIKEBALL_FINANCE_SHEET_ID unset); "
+              "alert de-duplication off for this run, sending")
+        send()
+        return code
+
+    window = alert.dedupe_window_hours()
+    now_utc = _now_utc()
+    send_it, last_sent_utc = alert.should_send(signature, sheet_id, now_utc, window)
+    if not send_it:
+        print(f"[run_nightly] alert suppressed: same reason already sent at "
+              f"{alert.to_mt_iso(last_sent_utc)} MT (window {window}h): {signature}")
+        alert.log_alert(sheet_id, now_utc, verdict, signature, "suppressed")
+        return code
+    if send():
+        alert.log_alert(sheet_id, now_utc, verdict, signature, "sent")
     return code
 
 
@@ -412,7 +450,8 @@ def run_pipeline(args, trigger="nightly", request_row=""):
                             f"crash: {tail}{extract_crash_note()}", args), False, None
 
     if not all_pass:
-        return fail(2, f"checks failed: {detail}", args), False, None
+        return fail(2, f"checks failed: {detail}", args,
+                    checks=(data.get("meta") or {}).get("checks")), False, None
     print(f"[run_nightly] checks passed: {detail}")
     refresh_local_state_fallback(state_new_path)
     try:
